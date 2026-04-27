@@ -18,8 +18,6 @@ function GetStageText (stage)
             return Loc ('Parsing Model');
         case ProgressStage.Converting:
             return Loc ('Converting Model');
-        case ProgressStage.Visualizing:
-            return Loc ('Visualizing Model');
         case ProgressStage.LoadingTextures:
             return Loc ('Loading Textures');
         default:

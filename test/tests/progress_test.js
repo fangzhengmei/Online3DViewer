@@ -10,7 +10,6 @@ describe ('Progress', function () {
         assert.strictEqual (OV.ProgressStage.Decompressing, 'decompressing');
         assert.strictEqual (OV.ProgressStage.Parsing, 'parsing');
         assert.strictEqual (OV.ProgressStage.Converting, 'converting');
-        assert.strictEqual (OV.ProgressStage.Visualizing, 'visualizing');
         assert.strictEqual (OV.ProgressStage.LoadingTextures, 'loading_textures');
         assert.strictEqual (OV.ProgressStage.Complete, 'complete');
     });
@@ -113,6 +112,94 @@ describe ('Progress', function () {
         let info2 = manager.GetProgressInfo ();
         assert.strictEqual (info1.currentFileName, 'test.obj');
         assert.strictEqual (info2.currentFileName, 'other.obj');
+    });
+
+    it ('Only visited stages are counted in overall percentage', function () {
+        let manager = new OV.ProgressManager ();
+
+        manager.SetStageProgress (10, 10);
+        let info1 = manager.GetProgressInfo ();
+        assert.strictEqual (info1.overallPercentage, 35);
+
+        manager.SetStage (OV.ProgressStage.Parsing);
+        let visitedStages = manager.GetVisitedStages ();
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.LoadingFiles), true);
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.Parsing), true);
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.Decompressing), false);
+
+        manager.SetStageProgress (0, 10);
+        let info2 = manager.GetProgressInfo ();
+        assert.strictEqual (info2.overallPercentage, 35);
+    });
+
+    it ('Skipping decompressing stage does not cause progress jump', function () {
+        let manager = new OV.ProgressManager ();
+
+        manager.SetStageProgress (5, 10);
+        let info1 = manager.GetProgressInfo ();
+        let overall1 = info1.overallPercentage;
+        assert.ok (overall1 > 0 && overall1 < 100);
+
+        manager.SetStageProgress (10, 10);
+        let info2 = manager.GetProgressInfo ();
+        let overall2 = info2.overallPercentage;
+        assert.strictEqual (overall2, 35);
+
+        manager.SetStage (OV.ProgressStage.Parsing);
+        let info3 = manager.GetProgressInfo ();
+        let overall3 = info3.overallPercentage;
+        assert.ok (overall3 >= overall2, 'Progress should not decrease when skipping decompressing stage');
+    });
+
+    it ('Decompressing stage is correctly included when visited', function () {
+        let manager = new OV.ProgressManager ();
+
+        manager.SetStageProgress (10, 10);
+
+        manager.SetStage (OV.ProgressStage.Decompressing);
+        manager.SetStageProgress (10, 10);
+
+        manager.SetStage (OV.ProgressStage.Parsing);
+        manager.SetStageProgress (0, 10);
+
+        let visitedStages = manager.GetVisitedStages ();
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.LoadingFiles), true);
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.Decompressing), true);
+        assert.strictEqual (visitedStages.has (OV.ProgressStage.Parsing), true);
+
+        let info = manager.GetProgressInfo ();
+        let expectedProgress = (35 + 10) / 100 * 100;
+        assert.strictEqual (info.overallPercentage, expectedProgress);
+    });
+
+    it ('Progress advances continuously through full flow', function () {
+        let manager = new OV.ProgressManager ();
+        let progressHistory = [];
+        
+        manager.AddListener ((info) => {
+            progressHistory.push (info.overallPercentage);
+        });
+        
+        manager.SetStageProgress (1, 2);
+        manager.SetStageProgress (2, 2);
+        manager.SetStage (OV.ProgressStage.Parsing);
+        manager.SetStageProgress (1, 2);
+        manager.SetStageProgress (2, 2);
+        manager.SetStage (OV.ProgressStage.Converting);
+        manager.SetStageProgress (1, 2);
+        manager.SetStageProgress (2, 2);
+        manager.SetStage (OV.ProgressStage.LoadingTextures);
+        manager.SetStageProgress (1, 2);
+        manager.SetStageProgress (2, 2);
+        manager.SetStage (OV.ProgressStage.Complete);
+        manager.SetStageProgress (1, 1);
+        
+        for (let i = 1; i < progressHistory.length; i++) {
+            assert.ok (progressHistory[i] >= progressHistory[i - 1], 
+                `Progress should not decrease: ${progressHistory[i - 1]} -> ${progressHistory[i]}`);
+        }
+        
+        assert.strictEqual (progressHistory[progressHistory.length - 1], 100);
     });
 });
 

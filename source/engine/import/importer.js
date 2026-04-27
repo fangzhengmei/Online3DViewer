@@ -109,14 +109,32 @@ export class Importer
 		this.importers.push (importer);
 	}
 
+    HasArchives (fileList)
+    {
+        let files = fileList.GetFiles ();
+        for (let file of files) {
+            if (file.extension === 'zip') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     ImportFiles (inputFiles, settings, callbacks)
     {
         callbacks.onLoadStart ();
         this.LoadFiles (inputFiles, {
             onReady : () => {
-                callbacks.onImportStart ();
                 RunTaskAsync (() => {
+                    let hasArchives = this.HasArchives (this.fileList);
+                    if (hasArchives && callbacks.onDecompressStart) {
+                        callbacks.onDecompressStart ();
+                    }
                     this.DecompressArchives (this.fileList, () => {
+                        if (hasArchives && callbacks.onDecompressEnd) {
+                            callbacks.onDecompressEnd ();
+                        }
+                        callbacks.onImportStart ();
                         this.ImportLoadedFiles (settings, callbacks);
                     });
                 });

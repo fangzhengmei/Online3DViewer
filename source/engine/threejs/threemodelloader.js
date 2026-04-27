@@ -57,6 +57,17 @@ export class ThreeModelLoader
                 this.progressManager.SetBytesProgress (current, total);
                 callbacks.onFileLoadProgress (current, total, fileName);
             },
+            onDecompressStart : () => {
+                this.progressManager.SetStage (ProgressStage.Decompressing);
+                if (callbacks.onDecompressStart) {
+                    callbacks.onDecompressStart ();
+                }
+            },
+            onDecompressEnd : () => {
+                if (callbacks.onDecompressEnd) {
+                    callbacks.onDecompressEnd ();
+                }
+            },
             onImportStart : () => {
                 this.progressManager.SetStage (ProgressStage.Parsing);
                 callbacks.onImportStart ();

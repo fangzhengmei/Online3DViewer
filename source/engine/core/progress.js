@@ -4,7 +4,6 @@ export const ProgressStage =
     Decompressing : 'decompressing',
     Parsing : 'parsing',
     Converting : 'converting',
-    Visualizing : 'visualizing',
     LoadingTextures : 'loading_textures',
     Complete : 'complete'
 };
@@ -88,14 +87,16 @@ export class ProgressManager
     {
         this.progressInfo = new ProgressInfo ();
         this.listeners = [];
+        this.visitedStages = new Set ([ProgressStage.LoadingFiles]);
+        this.completedStages = new Set ();
         this.stageWeights = new Map ([
-            [ProgressStage.LoadingFiles, 30],
+            [ProgressStage.LoadingFiles, 35],
             [ProgressStage.Decompressing, 10],
             [ProgressStage.Parsing, 25],
             [ProgressStage.Converting, 20],
-            [ProgressStage.Visualizing, 10],
-            [ProgressStage.LoadingTextures, 5]
+            [ProgressStage.LoadingTextures, 10]
         ]);
+        this.totalWeightSum = 100;
     }
 
     AddListener (listener)
@@ -120,6 +121,11 @@ export class ProgressManager
 
     SetStage (stage)
     {
+        const prevStage = this.progressInfo.stage;
+        if (prevStage !== stage && this.stageWeights.has (prevStage)) {
+            this.completedStages.add (prevStage);
+        }
+        this.visitedStages.add (stage);
         this.progressInfo.SetStage (stage);
         this.CalculateOverallPercentage ();
         this.NotifyListeners ();
@@ -156,44 +162,34 @@ export class ProgressManager
         return this.progressInfo.Clone ();
     }
 
+    GetVisitedStages ()
+    {
+        return new Set (this.visitedStages);
+    }
+
     CalculateOverallPercentage ()
     {
-        let totalWeight = 0;
-        let weightedProgress = 0;
-
-        const stageOrder = [
-            ProgressStage.LoadingFiles,
-            ProgressStage.Decompressing,
-            ProgressStage.Parsing,
-            ProgressStage.Converting,
-            ProgressStage.Visualizing,
-            ProgressStage.LoadingTextures
-        ];
-
-        const currentStageIndex = stageOrder.indexOf (this.progressInfo.stage);
-
-        for (let i = 0; i < stageOrder.length; i++) {
-            const stage = stageOrder[i];
-            const weight = this.stageWeights.get (stage) || 0;
-            totalWeight += weight;
-
-            if (i < currentStageIndex) {
-                weightedProgress += weight * 100;
-            } else if (i === currentStageIndex) {
-                weightedProgress += weight * this.progressInfo.stagePercentage;
-            }
+        if (this.progressInfo.stage === ProgressStage.Complete) {
+            this.progressInfo.overallPercentage = 100;
+            return;
         }
 
-        if (totalWeight > 0) {
-            this.progressInfo.overallPercentage = weightedProgress / totalWeight;
-        } else {
-            this.progressInfo.overallPercentage = this.progressInfo.stagePercentage;
+        let completedWeight = 0;
+        for (let stage of this.completedStages) {
+            completedWeight += this.stageWeights.get (stage) || 0;
         }
+
+        const currentWeight = this.stageWeights.get (this.progressInfo.stage) || 0;
+        const currentContrib = currentWeight * (this.progressInfo.stagePercentage / 100);
+
+        this.progressInfo.overallPercentage = (completedWeight + currentContrib) / this.totalWeightSum * 100;
     }
 
     Reset ()
     {
         this.progressInfo = new ProgressInfo ();
+        this.visitedStages = new Set ([ProgressStage.LoadingFiles]);
+        this.completedStages = new Set ();
         this.NotifyListeners ();
     }
 }

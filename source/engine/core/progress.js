@@ -105,7 +105,6 @@ export class ProgressManager
             [ProgressStage.Converting, 20],
             [ProgressStage.LoadingTextures, 10]
         ]);
-        this.totalWeightSum = 100;
     }
 
     AddListener (listener)
@@ -128,18 +127,36 @@ export class ProgressManager
         }
     }
 
-    MarkSkippedStages (newStage)
+    GetTotalWeight (stages)
     {
-        const newStageIndex = StageOrder.indexOf (newStage);
-        const currentStageIndex = StageOrder.indexOf (this.progressInfo.stage);
-
-        for (let i = currentStageIndex + 1; i < newStageIndex; i++) {
-            const skippedStage = StageOrder[i];
-            if (!this.visitedStages.has (skippedStage) && this.stageWeights.has (skippedStage)) {
-                this.visitedStages.add (skippedStage);
-                this.completedStages.add (skippedStage);
-            }
+        let total = 0;
+        for (let stage of stages) {
+            total += this.stageWeights.get (stage) || 0;
         }
+        return total;
+    }
+
+    CalculateProgress ()
+    {
+        if (this.progressInfo.stage === ProgressStage.Complete) {
+            return 100;
+        }
+
+        let completedWeight = this.GetTotalWeight (this.completedStages);
+        const currentStage = this.progressInfo.stage;
+        const currentWeight = this.stageWeights.get (currentStage) || 0;
+        const currentContrib = currentWeight * (this.progressInfo.stagePercentage / 100);
+
+        let effectiveWeight = completedWeight;
+        if (this.progressInfo.stageTotal > 0 && this.stageWeights.has (currentStage)) {
+            effectiveWeight += currentWeight;
+        }
+
+        if (effectiveWeight === 0) {
+            return this.progressInfo.stagePercentage;
+        }
+
+        return ((completedWeight + currentContrib) / effectiveWeight) * 100;
     }
 
     SetStage (stage)
@@ -148,30 +165,39 @@ export class ProgressManager
             return;
         }
 
-        this.MarkSkippedStages (stage);
-
         const prevStage = this.progressInfo.stage;
+
         if (this.stageWeights.has (prevStage)) {
             this.completedStages.add (prevStage);
         }
 
+        if (stage === ProgressStage.Complete) {
+            for (let i = 0; i < StageOrder.length - 1; i++) {
+                const skippedStage = StageOrder[i];
+                if (this.stageWeights.has (skippedStage) && !this.visitedStages.has (skippedStage)) {
+                    this.visitedStages.add (skippedStage);
+                    this.completedStages.add (skippedStage);
+                }
+            }
+        }
+
         this.visitedStages.add (stage);
         this.progressInfo.SetStage (stage);
-        this.CalculateOverallPercentage ();
+        this.progressInfo.overallPercentage = this.CalculateProgress ();
         this.NotifyListeners ();
     }
 
     SetStageProgress (progress, total)
     {
         this.progressInfo.SetStageProgress (progress, total);
-        this.CalculateOverallPercentage ();
+        this.progressInfo.overallPercentage = this.CalculateProgress ();
         this.NotifyListeners ();
     }
 
     SetBytesProgress (loaded, total)
     {
         this.progressInfo.SetBytesProgress (loaded, total);
-        this.CalculateOverallPercentage ();
+        this.progressInfo.overallPercentage = this.CalculateProgress ();
         this.NotifyListeners ();
     }
 
@@ -200,26 +226,6 @@ export class ProgressManager
     GetCompletedStages ()
     {
         return new Set (this.completedStages);
-    }
-
-    CalculateOverallPercentage ()
-    {
-        if (this.progressInfo.stage === ProgressStage.Complete) {
-            this.progressInfo.overallPercentage = 100;
-            return;
-        }
-
-        let completedWeight = 0;
-        for (let stage of this.completedStages) {
-            const weight = this.stageWeights.get (stage) || 0;
-            completedWeight += weight;
-        }
-
-        const currentStage = this.progressInfo.stage;
-        const currentWeight = this.stageWeights.get (currentStage) || 0;
-        const currentContrib = currentWeight * (this.progressInfo.stagePercentage / 100);
-
-        this.progressInfo.overallPercentage = ((completedWeight + currentContrib) / this.totalWeightSum) * 100;
     }
 
     Reset ()

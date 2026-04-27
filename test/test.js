@@ -3,6 +3,7 @@ import * as OV from '../source/engine/main.js';
 import * as path from 'path';
 
 import core_test from './tests/core_test.js';
+import progress_test from './tests/progress_test.js';
 import taskrunner_test from './tests/taskrunner_test.js';
 import fileutils_test from './tests/fileutils_test.js';
 import io_test from './tests/io_test.js';
@@ -33,6 +34,7 @@ process.chdir (path.resolve ());
 SetGlobals ();
 
 core_test ();
+progress_test ();
 taskrunner_test ();
 fileutils_test ();
 io_test ();

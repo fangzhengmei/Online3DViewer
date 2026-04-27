@@ -252,6 +252,61 @@ div.ov_progress div.ov_progress_text
 	text-align: center;
 }
 
+div.ov_progress div.ov_progress_section
+{
+	margin-top: 20px;
+	margin-bottom: 10px;
+}
+
+div.ov_progress div.ov_progress_bar_container
+{
+	background: var(--ov_border_color);
+	height: 10px;
+	border-radius: 5px;
+	overflow: hidden;
+}
+
+div.ov_progress div.ov_progress_bar
+{
+	background: var(--ov_button_color);
+	height: 100%;
+	width: 0%;
+	transition: width 0.1s ease-out;
+	border-radius: 5px;
+}
+
+div.ov_progress div.ov_progress_info
+{
+	margin-top: 10px;
+	font-size: 14px;
+	color: var(--ov_dialog_foreground_color);
+	opacity: 0.8;
+}
+
+div.ov_progress div.ov_progress_percentage
+{
+	font-size: 16px;
+	font-weight: bold;
+	margin-bottom: 5px;
+	color: var(--ov_button_color);
+}
+
+div.ov_progress div.ov_progress_file_name
+{
+	margin-top: 5px;
+	margin-bottom: 5px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	display: none;
+}
+
+div.ov_progress div.ov_progress_details
+{
+	margin-top: 5px;
+	display: none;
+}
+
 div.ov_snapshot_dialog
 {
 	width: 480px;

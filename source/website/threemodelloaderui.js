@@ -5,6 +5,27 @@ import { ButtonDialog, ProgressDialog } from './dialog.js';
 import { AddSvgIconElement } from './utils.js';
 import { ImportErrorCode } from '../engine/import/importer.js';
 import { Loc } from '../engine/core/localization.js';
+import { ProgressStage, FormatFileSize } from '../engine/core/progress.js';
+
+function GetStageText (stage)
+{
+    switch (stage) {
+        case ProgressStage.LoadingFiles:
+            return Loc ('Loading Model');
+        case ProgressStage.Decompressing:
+            return Loc ('Decompressing Files');
+        case ProgressStage.Parsing:
+            return Loc ('Parsing Model');
+        case ProgressStage.Converting:
+            return Loc ('Converting Model');
+        case ProgressStage.Visualizing:
+            return Loc ('Visualizing Model');
+        case ProgressStage.LoadingTextures:
+            return Loc ('Loading Textures');
+        default:
+            return Loc ('Processing');
+    }
+}
 
 export class ThreeModelLoaderUI
 {
@@ -12,6 +33,7 @@ export class ThreeModelLoaderUI
     {
         this.modelLoader = new ThreeModelLoader ();
         this.modalDialog = null;
+        this.progressListener = null;
     }
 
     LoadModel (inputFiles, settings, callbacks)
@@ -21,6 +43,16 @@ export class ThreeModelLoaderUI
         }
 
         let progressDialog = null;
+        let progressManager = this.modelLoader.GetProgressManager ();
+
+        this.progressListener = (progressInfo) => {
+            if (progressDialog !== null && progressDialog.isOpen) {
+                progressDialog.SetText (GetStageText (progressInfo.stage));
+                progressDialog.UpdateFromProgressInfo (progressInfo, FormatFileSize);
+            }
+        };
+        progressManager.AddListener (this.progressListener);
+
         this.modelLoader.LoadModel (inputFiles, settings, {
             onLoadStart : () => {
                 this.CloseDialogIfOpen ();
@@ -31,7 +63,7 @@ export class ThreeModelLoaderUI
             },
             onFileListProgress : (current, total) => {
             },
-            onFileLoadProgress : (current, total) => {
+            onFileLoadProgress : (current, total, fileName) => {
             },
             onSelectMainFile : (fileNames, selectFile) => {
                 progressDialog.Close ();
@@ -41,12 +73,16 @@ export class ThreeModelLoaderUI
                 });
             },
             onImportStart : () => {
-                progressDialog.SetText (Loc ('Importing Model'));
             },
             onVisualizationStart : () => {
-                progressDialog.SetText (Loc ('Visualizing Model'));
+            },
+            onConversionProgress : (progress, total) => {
             },
             onModelFinished : (importResult, threeObject) => {
+                if (this.progressListener !== null) {
+                    progressManager.RemoveListener (this.progressListener);
+                    this.progressListener = null;
+                }
                 progressDialog.Close ();
                 callbacks.onFinish (importResult, threeObject);
             },
@@ -54,6 +90,10 @@ export class ThreeModelLoaderUI
                 callbacks.onRender ();
             },
             onLoadError : (importError) => {
+                if (this.progressListener !== null) {
+                    progressManager.RemoveListener (this.progressListener);
+                    this.progressListener = null;
+                }
                 progressDialog.Close ();
                 callbacks.onError (importError);
                 this.modalDialog = this.ShowErrorDialog (importError);

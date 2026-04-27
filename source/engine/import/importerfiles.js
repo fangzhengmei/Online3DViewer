@@ -94,9 +94,12 @@ export class ImporterFileList
         RunTasks (this.files.length, {
             runTask : (index, onTaskComplete) => {
                 callbacks.onFileListProgress (index, this.files.length);
-                this.GetFileContent (this.files[index], {
+                let file = this.files[index];
+                this.GetFileContent (file, {
                     onReady : onTaskComplete,
-                    onProgress : callbacks.onFileLoadProgress
+                    onProgress : (current, total) => {
+                        callbacks.onFileLoadProgress (current, total, file.name);
+                    }
                 });
             },
             onReady : callbacks.onReady

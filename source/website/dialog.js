@@ -135,6 +135,11 @@ export class ProgressDialog extends Dialog
         super ();
         this.SetCloseable (false);
         this.textDiv = null;
+        this.progressBarContainer = null;
+        this.progressBar = null;
+        this.percentageDiv = null;
+        this.fileNameDiv = null;
+        this.detailsDiv = null;
     }
 
     Init (text)
@@ -145,11 +150,76 @@ export class ProgressDialog extends Dialog
         AddDiv (contentDiv, 'ov_progress_img', '<svg><use href="assets/images/3dviewer_net_logo.svg#logo"></use></svg>');
         this.textDiv = AddDiv (contentDiv, 'ov_progress_text');
         this.SetText (text);
+
+        let progressSection = AddDiv (contentDiv, 'ov_progress_section');
+        this.progressBarContainer = AddDiv (progressSection, 'ov_progress_bar_container');
+        this.progressBar = AddDiv (this.progressBarContainer, 'ov_progress_bar');
+        this.SetProgress (0);
+
+        let infoSection = AddDiv (contentDiv, 'ov_progress_info');
+        this.percentageDiv = AddDiv (infoSection, 'ov_progress_percentage');
+        this.fileNameDiv = AddDiv (infoSection, 'ov_progress_file_name');
+        this.detailsDiv = AddDiv (infoSection, 'ov_progress_details');
+
+        this.SetPercentage (0);
     }
 
     SetText (text)
     {
         this.textDiv.innerHTML = text;
+    }
+
+    SetProgress (percentage)
+    {
+        if (this.progressBar) {
+            this.progressBar.style.width = Math.max (0, Math.min (100, percentage)) + '%';
+        }
+    }
+
+    SetPercentage (percentage)
+    {
+        if (this.percentageDiv) {
+            this.percentageDiv.innerHTML = percentage.toFixed (1) + '%';
+        }
+        this.SetProgress (percentage);
+    }
+
+    SetFileName (fileName)
+    {
+        if (this.fileNameDiv) {
+            if (fileName !== null && fileName !== undefined) {
+                this.fileNameDiv.innerHTML = fileName;
+                this.fileNameDiv.style.display = 'block';
+            } else {
+                this.fileNameDiv.style.display = 'none';
+            }
+        }
+    }
+
+    SetDetails (details)
+    {
+        if (this.detailsDiv) {
+            if (details !== null && details !== undefined) {
+                this.detailsDiv.innerHTML = details;
+                this.detailsDiv.style.display = 'block';
+            } else {
+                this.detailsDiv.style.display = 'none';
+            }
+        }
+    }
+
+    UpdateFromProgressInfo (progressInfo, formatFileSize)
+    {
+        this.SetPercentage (progressInfo.overallPercentage);
+        this.SetFileName (progressInfo.currentFileName);
+
+        let details = null;
+        if (progressInfo.bytesTotal > 0) {
+            details = formatFileSize (progressInfo.bytesLoaded) + ' / ' + formatFileSize (progressInfo.bytesTotal);
+        } else if (progressInfo.stageTotal > 0) {
+            details = progressInfo.stageProgress + ' / ' + progressInfo.stageTotal;
+        }
+        this.SetDetails (details);
     }
 }
 

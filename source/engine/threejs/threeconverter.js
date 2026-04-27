@@ -39,6 +39,7 @@ export class ThreeConversionStateHandler
 		this.texturesNeeded = 0;
 		this.texturesLoaded = 0;
 		this.threeObject = null;
+		this.textureNeededNotified = false;
 	}
 
 	OnTextureNeeded ()
@@ -46,15 +47,29 @@ export class ThreeConversionStateHandler
 		this.texturesNeeded += 1;
 	}
 
+	NotifyTextureNeededCount ()
+	{
+		if (!this.textureNeededNotified && this.texturesNeeded > 0) {
+			this.textureNeededNotified = true;
+			if (this.callbacks.onTextureNeeded) {
+				this.callbacks.onTextureNeeded (this.texturesNeeded);
+			}
+		}
+	}
+
 	OnTextureLoaded ()
 	{
+		this.NotifyTextureNeededCount ();
 		this.texturesLoaded += 1;
-		this.callbacks.onTextureLoaded ();
+		if (this.callbacks.onTextureLoaded) {
+			this.callbacks.onTextureLoaded ();
+		}
 		this.Finish ();
 	}
 
 	OnModelLoaded (threeObject)
 	{
+		this.NotifyTextureNeededCount ();
 		this.threeObject = threeObject;
 		this.Finish ();
 	}
@@ -62,7 +77,9 @@ export class ThreeConversionStateHandler
 	Finish ()
 	{
 		if (this.threeObject !== null && this.texturesNeeded === this.texturesLoaded) {
-			this.callbacks.onModelLoaded (this.threeObject);
+			if (this.callbacks.onModelLoaded) {
+				this.callbacks.onModelLoaded (this.threeObject);
+			}
 		}
 	}
 }
@@ -486,16 +503,22 @@ export function ConvertModelToThreeObject (model, conversionParams, conversionOu
 		}
 	}
 
-	function ConvertNodeHierarchy (threeRootNode, model, materialHandler, stateHandler)
+	function ConvertNodeHierarchy (threeRootNode, model, materialHandler, stateHandler, callbacks)
 	{
 		let nodeTree = new ThreeNodeTree (model, threeRootNode);
 		let threeNodeItems = nodeTree.GetNodeItems ();
+		let totalItems = threeNodeItems.length;
+		let processedItems = 0;
 
-		RunTasksBatch (threeNodeItems.length, 100, {
+		RunTasksBatch (totalItems, 100, {
 			runTask : (firstMeshInstanceIndex, lastMeshInstanceIndex, onReady) => {
 				for (let meshInstanceIndex = firstMeshInstanceIndex; meshInstanceIndex <= lastMeshInstanceIndex; meshInstanceIndex++) {
 					let nodeItem = threeNodeItems[meshInstanceIndex];
 					ConvertMesh (nodeItem.threeNode, nodeItem.meshInstance, materialHandler);
+					processedItems++;
+				}
+				if (callbacks && callbacks.onProgress) {
+					callbacks.onProgress (processedItems, totalItems);
 				}
 				onReady ();
 			},
@@ -508,5 +531,5 @@ export function ConvertModelToThreeObject (model, conversionParams, conversionOu
 	let stateHandler = new ThreeConversionStateHandler (callbacks);
 	let materialHandler = new ThreeMaterialHandler (model, stateHandler, conversionParams, conversionOutput);
 	let threeObject = new THREE.Object3D ();
-	ConvertNodeHierarchy (threeObject, model, materialHandler, stateHandler);
+	ConvertNodeHierarchy (threeObject, model, materialHandler, stateHandler, callbacks);
 }

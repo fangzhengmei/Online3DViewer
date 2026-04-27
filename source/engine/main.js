@@ -2,6 +2,7 @@ import { IsDefined, ValueOrDefault, CopyObjectAttributes, IsObjectEmpty, FormatS
 import { EventNotifier } from './core/eventnotifier.js';
 import { SetLocalizedStrings, SetLanguageCode, Loc, FLoc } from './core/localization.js';
 import { TaskRunner, RunTaskAsync, RunTasks, RunTasksBatch, WaitWhile } from './core/taskrunner.js';
+import { ProgressStage, ProgressInfo, ProgressManager, FormatFileSize, FormatPercentage } from './core/progress.js';
 import { Exporter } from './export/exporter.js';
 import { Exporter3dm } from './export/exporter3dm.js';
 import { ExportedFile, ExporterBase } from './export/exporterbase.js';
@@ -93,6 +94,11 @@ export {
     RunTasks,
     RunTasksBatch,
     WaitWhile,
+    ProgressStage,
+    ProgressInfo,
+    ProgressManager,
+    FormatFileSize,
+    FormatPercentage,
     Exporter,
     Exporter3dm,
     ExportedFile,

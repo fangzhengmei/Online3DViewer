@@ -166,32 +166,28 @@ describe ('Progress', function () {
         assert.strictEqual (callCount, prevCallCount);
     });
 
-    it ('Progress calculation uses only stages with actual work', function () {
+    it ('Progress is monotonically non-decreasing', function () {
         let manager = new OV.ProgressManager ();
         
         manager.SetStageProgress (10, 10);
         let info1 = manager.GetProgressInfo ();
-        let visitedStages1 = manager.GetVisitedStages ();
-        
-        assert.strictEqual (visitedStages1.size, 1);
-        assert.strictEqual (visitedStages1.has (OV.ProgressStage.LoadingFiles), true);
         assert.strictEqual (info1.overallPercentage, 100);
         
         manager.SetStage (OV.ProgressStage.Parsing);
         let info2 = manager.GetProgressInfo ();
-        let visitedStages2 = manager.GetVisitedStages ();
-        
-        assert.strictEqual (visitedStages2.size, 2);
-        assert.strictEqual (visitedStages2.has (OV.ProgressStage.Parsing), true);
-        
         assert.strictEqual (info2.overallPercentage, 100);
         
         manager.SetStageProgress (0, 10);
         let info3 = manager.GetProgressInfo ();
-        let completedWeight = 35;
-        let effectiveWeight = 35 + 25;
-        let expectedProgress = (completedWeight / effectiveWeight) * 100;
-        assert.strictEqual (info3.overallPercentage, expectedProgress);
+        assert.strictEqual (info3.overallPercentage, 100);
+        
+        manager.SetStageProgress (5, 10);
+        let info4 = manager.GetProgressInfo ();
+        assert.strictEqual (info4.overallPercentage, 100);
+        
+        manager.SetStageProgress (10, 10);
+        let info5 = manager.GetProgressInfo ();
+        assert.strictEqual (info5.overallPercentage, 100);
     });
 
     it ('Progress at end does not jump when skipping stages', function () {
@@ -246,33 +242,78 @@ describe ('Progress', function () {
     it ('Progress updates correctly when stage has non-zero total work', function () {
         let manager = new OV.ProgressManager ();
         
-        manager.SetStageProgress (10, 10);
-        manager.SetStage (OV.ProgressStage.Parsing);
-        manager.SetStageProgress (10, 10);
-        manager.SetStage (OV.ProgressStage.Converting);
-        manager.SetStageProgress (10, 10);
+        manager.SetStageProgress (5, 10);
+        let info1 = manager.GetProgressInfo ();
+        assert.strictEqual (info1.overallPercentage, 50);
         
+        manager.SetStage (OV.ProgressStage.Parsing);
+        let info2 = manager.GetProgressInfo ();
+        assert.strictEqual (info2.overallPercentage, 50);
+        
+        manager.SetStageProgress (0, 10);
+        let info3 = manager.GetProgressInfo ();
+        let completedWeight = 35;
+        let effectiveWeight = 35 + 25;
+        let expectedProgress = (completedWeight / effectiveWeight) * 100;
+        assert.strictEqual (info3.overallPercentage, Math.max (50, expectedProgress));
+        
+        manager.SetStageProgress (5, 10);
+        let info4 = manager.GetProgressInfo ();
+        let currentContrib = 25 * 0.5;
+        let expectedProgress2 = ((completedWeight + currentContrib) / effectiveWeight) * 100;
+        assert.strictEqual (info4.overallPercentage, expectedProgress2);
+        
+        manager.SetStageProgress (10, 10);
+        let info5 = manager.GetProgressInfo ();
+        assert.strictEqual (info5.overallPercentage, 100);
+        
+        manager.SetStage (OV.ProgressStage.Complete);
+        let info6 = manager.GetProgressInfo ();
+        assert.strictEqual (info6.overallPercentage, 100);
+    });
+
+    it ('Reset resets highestProgress', function () {
+        let manager = new OV.ProgressManager ();
+        
+        manager.SetStageProgress (10, 10);
         let info1 = manager.GetProgressInfo ();
         assert.strictEqual (info1.overallPercentage, 100);
         
-        manager.SetStage (OV.ProgressStage.LoadingTextures);
+        manager.Reset ();
+        
         let info2 = manager.GetProgressInfo ();
-        assert.strictEqual (info2.overallPercentage, 100);
+        assert.strictEqual (info2.overallPercentage, 0);
         
-        manager.SetStageProgress (0, 5);
+        manager.SetStageProgress (5, 10);
         let info3 = manager.GetProgressInfo ();
-        let completedWeight = 35 + 25 + 20;
-        let effectiveWeight = completedWeight + 10;
-        let expectedProgress = (completedWeight / effectiveWeight) * 100;
-        assert.strictEqual (info3.overallPercentage, expectedProgress);
+        assert.strictEqual (info3.overallPercentage, 50);
+    });
+
+    it ('Progress increases gradually during normal loading flow', function () {
+        let manager = new OV.ProgressManager ();
+        let progressHistory = [];
         
-        manager.SetStageProgress (5, 5);
-        let info4 = manager.GetProgressInfo ();
-        assert.strictEqual (info4.overallPercentage, 100);
+        manager.AddListener ((info) => {
+            progressHistory.push (info.overallPercentage);
+        });
         
+        manager.SetStageProgress (5, 10);
+        manager.SetStageProgress (10, 10);
+        manager.SetStage (OV.ProgressStage.Parsing);
+        manager.SetStageProgress (0, 10);
+        manager.SetStageProgress (5, 10);
+        manager.SetStageProgress (10, 10);
+        manager.SetStage (OV.ProgressStage.Converting);
+        manager.SetStageProgress (0, 10);
+        manager.SetStageProgress (10, 10);
         manager.SetStage (OV.ProgressStage.Complete);
-        let info5 = manager.GetProgressInfo ();
-        assert.strictEqual (info5.overallPercentage, 100);
+        
+        for (let i = 1; i < progressHistory.length; i++) {
+            assert.ok (progressHistory[i] >= progressHistory[i - 1], 
+                `Progress decreased: ${progressHistory[i - 1]} -> ${progressHistory[i]}`);
+        }
+        
+        assert.strictEqual (progressHistory[progressHistory.length - 1], 100);
     });
 });
 

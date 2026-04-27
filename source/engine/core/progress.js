@@ -98,6 +98,7 @@ export class ProgressManager
         this.listeners = [];
         this.visitedStages = new Set ([ProgressStage.LoadingFiles]);
         this.completedStages = new Set ();
+        this.highestProgress = 0;
         this.stageWeights = new Map ([
             [ProgressStage.LoadingFiles, 35],
             [ProgressStage.Decompressing, 10],
@@ -139,6 +140,7 @@ export class ProgressManager
     CalculateProgress ()
     {
         if (this.progressInfo.stage === ProgressStage.Complete) {
+            this.highestProgress = 100;
             return 100;
         }
 
@@ -152,11 +154,15 @@ export class ProgressManager
             effectiveWeight += currentWeight;
         }
 
+        let calculatedProgress;
         if (effectiveWeight === 0) {
-            return this.progressInfo.stagePercentage;
+            calculatedProgress = this.progressInfo.stagePercentage;
+        } else {
+            calculatedProgress = ((completedWeight + currentContrib) / effectiveWeight) * 100;
         }
 
-        return ((completedWeight + currentContrib) / effectiveWeight) * 100;
+        this.highestProgress = Math.max (this.highestProgress, calculatedProgress);
+        return this.highestProgress;
     }
 
     SetStage (stage)
@@ -179,11 +185,12 @@ export class ProgressManager
                     this.completedStages.add (skippedStage);
                 }
             }
+            this.highestProgress = 100;
         }
 
         this.visitedStages.add (stage);
         this.progressInfo.SetStage (stage);
-        this.progressInfo.overallPercentage = this.CalculateProgress ();
+        this.progressInfo.overallPercentage = this.highestProgress;
         this.NotifyListeners ();
     }
 
@@ -233,6 +240,7 @@ export class ProgressManager
         this.progressInfo = new ProgressInfo ();
         this.visitedStages = new Set ([ProgressStage.LoadingFiles]);
         this.completedStages = new Set ();
+        this.highestProgress = 0;
         this.NotifyListeners ();
     }
 }

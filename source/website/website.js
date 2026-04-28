@@ -22,7 +22,7 @@ import { ShowSharingDialog } from './sharingdialog.js';
 import { GetDefaultMaterials, ReplaceDefaultMaterialsColor } from '../engine/model/modelutils.js';
 import { Direction } from '../engine/geometry/geometry.js';
 import { CookieGetBoolVal, CookieSetBoolVal } from './cookiehandler.js';
-import { MeasureTool } from './measuretool.js';
+import { MeasureTool, MeasureMode } from './measuretool.js';
 import { CloseAllDialogs } from './dialog.js';
 import { CreateVerticalSplitter } from './splitter.js';
 import { EnumeratePlugins, PluginType } from './pluginregistry.js';
@@ -706,8 +706,22 @@ export class Website
             HandleEvent ('measure_tool_activated', isSelected ? 'on' : 'off');
             this.navigator.SetSelection (null);
             this.measureTool.SetActive (isSelected);
+            if (isSelected) {
+                this.measureTool.SetMode (MeasureMode.Distance);
+            }
         });
         this.measureTool.SetButton (measureToolButton);
+
+        AddRadioButton (this.toolbar, ['measure_distance', 'measure_angle'], [Loc ('Measure Distance'), Loc ('Measure Angle')], 0, ['only_full_width', 'only_on_model'], (buttonIndex) => {
+            if (!this.measureTool.IsActive ()) {
+                this.measureTool.SetActive (true);
+            }
+            if (buttonIndex === 0) {
+                this.measureTool.SetMode (MeasureMode.Distance);
+            } else if (buttonIndex === 1) {
+                this.measureTool.SetMode (MeasureMode.Angle);
+            }
+        });
         AddSeparator (this.toolbar, ['only_full_width', 'only_on_model']);
         AddButton (this.toolbar, 'download', Loc ('Download'), ['only_full_width', 'only_on_model'], () => {
             HandleEvent ('model_downloaded', '');

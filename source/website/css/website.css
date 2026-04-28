@@ -354,6 +354,21 @@ div.ov_measure_panel div.ov_measure_value
 	margin-right: 10px;
 }
 
+div.ov_measure_annotation
+{
+	position: absolute;
+	pointer-events: none;
+	z-index: 1000;
+	font-family: 'Quicksand', Arial, sans-serif;
+	font-size: 13px;
+	font-weight: bold;
+	padding: 3px 8px;
+	border-radius: 4px;
+	white-space: nowrap;
+	box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+	border: 1px solid rgba(0,0,0,0.1);
+}
+
 @media (hover)
 {
 

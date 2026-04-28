@@ -63,6 +63,7 @@
 		"fantasticon": "^1.2.2",
 		"http-server": "^14.0.0",
 		"jsdoc": "^4.0.4",
+		"jsdom": "^26.0.0",
 		"mocha": "^11.5.0",
 		"oslllo-svg-fixer": "^3.0.0",
 		"rollup": "^4.41.0",

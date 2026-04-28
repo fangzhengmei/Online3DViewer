@@ -171,6 +171,11 @@ export class TreeViewItem
         parentDiv.appendChild (this.mainElement);
     }
 
+    GetDomElement ()
+    {
+        return this.mainElement;
+    }
+
     GetName ()
     {
         return this.name;

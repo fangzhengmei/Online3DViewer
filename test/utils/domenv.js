@@ -9,17 +9,72 @@ export function SetupDOMEnvironment ()
 
     global.window = dom.window;
     global.document = dom.window.document;
-    global.navigator = dom.window.navigator;
-    global.Element = dom.window.Element;
-    global.HTMLElement = dom.window.HTMLElement;
-    global.MouseEvent = dom.window.MouseEvent;
-    global.KeyboardEvent = dom.window.KeyboardEvent;
-    global.Event = dom.window.Event;
-    global.CustomEvent = dom.window.CustomEvent;
-    global.getComputedStyle = dom.window.getComputedStyle;
-    global.DOMParser = dom.window.DOMParser;
-    global.Range = dom.window.Range;
-    global.Selection = dom.window.Selection;
+
+    Object.defineProperty (global, 'navigator', {
+        value: dom.window.navigator,
+        configurable: true,
+        writable: true
+    });
+
+    Object.defineProperty (global, 'Element', {
+        value: dom.window.Element,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'HTMLElement', {
+        value: dom.window.HTMLElement,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'MouseEvent', {
+        value: dom.window.MouseEvent,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'KeyboardEvent', {
+        value: dom.window.KeyboardEvent,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'Event', {
+        value: dom.window.Event,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'CustomEvent', {
+        value: dom.window.CustomEvent,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'getComputedStyle', {
+        value: dom.window.getComputedStyle,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'DOMParser', {
+        value: dom.window.DOMParser,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'Range', {
+        value: dom.window.Range,
+        configurable: true
+    });
+
+    Object.defineProperty (global, 'Selection', {
+        value: dom.window.Selection,
+        configurable: true
+    });
+
+    if (!dom.window.Element.prototype.scrollIntoView) {
+        Object.defineProperty (dom.window.Element.prototype, 'scrollIntoView', {
+            value: function (options) {
+                return;
+            },
+            configurable: true,
+            writable: true
+        });
+    }
 
     if (!global.window.getSelection) {
         Object.defineProperty (global.window, 'getSelection', {
@@ -28,7 +83,8 @@ export function SetupDOMEnvironment ()
                     removeAllRanges: () => {},
                     addRange: () => {}
                 };
-            }
+            },
+            configurable: true
         });
     }
 
@@ -38,7 +94,8 @@ export function SetupDOMEnvironment ()
                 return {
                     selectNodeContents: () => {}
                 };
-            }
+            },
+            configurable: true
         });
     }
 

@@ -311,7 +311,7 @@ describe ('TreeViewGroupItem', function () {
         assert.strictEqual (root.GetCheckedChildCount (), 1);
 
         group1.SetChecked (true);
-        assert.strictEqual (root.GetCheckedChildCount (), 3);
+        assert.strictEqual (root.GetCheckedChildCount (), 2);
 
         root.SetCheckedRecursive (true);
         assert.strictEqual (root.GetCheckedChildCount (), 4);

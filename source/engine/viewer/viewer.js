@@ -520,6 +520,160 @@ export class Viewer
         });
     }
 
+    GetMaterialByIndex (materialIndex)
+    {
+        let material = null;
+        this.mainModel.EnumerateMeshes ((mesh) => {
+            if (mesh.userData.originalMaterials !== undefined) {
+                let materialIdx = mesh.userData.originalMaterials.indexOf (materialIndex);
+                if (materialIdx !== -1 && Array.isArray (mesh.material)) {
+                    material = mesh.material[materialIdx];
+                    return false;
+                }
+            }
+        });
+        return material;
+    }
+
+    GetMeshesUsingMaterial (materialIndex)
+    {
+        let meshes = [];
+        this.mainModel.EnumerateMeshes ((mesh) => {
+            if (mesh.userData.originalMaterials !== undefined) {
+                if (mesh.userData.originalMaterials.indexOf (materialIndex) !== -1) {
+                    meshes.push (mesh);
+                }
+            }
+        });
+        return meshes;
+    }
+
+    GetMeshByInstanceId (meshInstanceId)
+    {
+        let foundMesh = null;
+        this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+            if (mesh.userData.originalMeshInstance !== undefined &&
+                mesh.userData.originalMeshInstance.id.IsEqual (meshInstanceId)) {
+                foundMesh = mesh;
+                return false;
+            }
+        });
+        return foundMesh;
+    }
+
+    GetMeshMaterialByIndex (mesh, materialIndex)
+    {
+        if (mesh.userData.originalMaterials === undefined || !Array.isArray (mesh.material)) {
+            return null;
+        }
+        let idx = mesh.userData.originalMaterials.indexOf (materialIndex);
+        if (idx === -1) {
+            return null;
+        }
+        return mesh.material[idx];
+    }
+
+    SetMaterialColor (materialIndex, color)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.color !== undefined) {
+                material.color = color;
+                material.needsUpdate = true;
+            }
+            if (material !== null && material.userData !== undefined &&
+                material.userData.threeMaterials !== undefined) {
+                for (let mat of material.userData.threeMaterials) {
+                    if (mat.color !== undefined) {
+                        mat.color = color;
+                        mat.needsUpdate = true;
+                    }
+                }
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialEmissive (materialIndex, color)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.emissive !== undefined) {
+                material.emissive = color;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialMetalness (materialIndex, metalness)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.metalness !== undefined) {
+                material.metalness = metalness;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialRoughness (materialIndex, roughness)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.roughness !== undefined) {
+                material.roughness = roughness;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialOpacity (materialIndex, opacity)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null) {
+                material.opacity = opacity;
+                material.transparent = opacity < 1.0;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialSpecular (materialIndex, color)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.specular !== undefined) {
+                material.specular = color;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
+    SetMaterialShininess (materialIndex, shininess)
+    {
+        let meshes = this.GetMeshesUsingMaterial (materialIndex);
+        for (let mesh of meshes) {
+            let material = this.GetMeshMaterialByIndex (mesh, materialIndex);
+            if (material !== null && material.shininess !== undefined) {
+                material.shininess = shininess;
+                material.needsUpdate = true;
+            }
+        }
+        this.Render ();
+    }
+
     InitNavigation ()
     {
         let camera = GetDefaultCamera (Direction.Y);

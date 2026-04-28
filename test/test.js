@@ -28,6 +28,7 @@ import exporter_test from './tests/exporter_test.js';
 import exportimport_test from './tests/exportimport_test.js';
 import property_test from './tests/property_test.js';
 import parameterlist_test from './tests/parameterlist_test.js';
+import materialeditor_test from './tests/materialeditor_test.js';
 
 process.chdir (path.resolve ());
 SetGlobals ();
@@ -58,3 +59,4 @@ exporter_test ();
 exportimport_test ();
 property_test ();
 parameterlist_test ();
+materialeditor_test ();

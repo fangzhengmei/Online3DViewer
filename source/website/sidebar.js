@@ -41,6 +41,24 @@ export class Sidebar
             }
         });
 
+        this.detailsPanel.Init ({
+            onMaterialColorChanged : (materialIndex, color) => {
+                this.callbacks.onMaterialColorChanged (materialIndex, color);
+            },
+            onMaterialMetalnessChanged : (materialIndex, metalness) => {
+                this.callbacks.onMaterialMetalnessChanged (materialIndex, metalness);
+            },
+            onMaterialRoughnessChanged : (materialIndex, roughness) => {
+                this.callbacks.onMaterialRoughnessChanged (materialIndex, roughness);
+            },
+            onMaterialOpacityChanged : (materialIndex, opacity) => {
+                this.callbacks.onMaterialOpacityChanged (materialIndex, opacity);
+            },
+            onMaterialSpecularChanged : (materialIndex, color) => {
+                this.callbacks.onMaterialSpecularChanged (materialIndex, color);
+            }
+        });
+
         this.settingsPanel.Init ({
             getShadingType : () => {
                 return this.callbacks.getShadingType ();
@@ -102,8 +120,8 @@ export class Sidebar
         this.detailsPanel.AddObject3DProperties (model, object3D);
     }
 
-    AddMaterialProperties (material)
+    AddMaterialProperties (material, materialIndex)
     {
-        this.detailsPanel.AddMaterialProperties (material);
+        this.detailsPanel.AddMaterialProperties (material, materialIndex);
     }
 }

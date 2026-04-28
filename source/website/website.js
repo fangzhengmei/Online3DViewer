@@ -825,6 +825,57 @@ export class Website
                 HandleEvent ('edge_display_changed', this.settings.showEdges ? 'on' : 'off');
                 this.UpdateEdgeDisplay ();
             },
+            onMaterialColorChanged : (materialIndex, color) => {
+                if (this.model === null) {
+                    return;
+                }
+                let material = this.model.GetMaterial (materialIndex);
+                if (material !== undefined) {
+                    material.color = color;
+                }
+                this.viewer.SetMaterialColor (materialIndex, color);
+            },
+            onMaterialMetalnessChanged : (materialIndex, metalness) => {
+                if (this.model === null) {
+                    return;
+                }
+                let material = this.model.GetMaterial (materialIndex);
+                if (material !== undefined && material.metalness !== undefined) {
+                    material.metalness = metalness;
+                }
+                this.viewer.SetMaterialMetalness (materialIndex, metalness);
+            },
+            onMaterialRoughnessChanged : (materialIndex, roughness) => {
+                if (this.model === null) {
+                    return;
+                }
+                let material = this.model.GetMaterial (materialIndex);
+                if (material !== undefined && material.roughness !== undefined) {
+                    material.roughness = roughness;
+                }
+                this.viewer.SetMaterialRoughness (materialIndex, roughness);
+            },
+            onMaterialOpacityChanged : (materialIndex, opacity) => {
+                if (this.model === null) {
+                    return;
+                }
+                let material = this.model.GetMaterial (materialIndex);
+                if (material !== undefined) {
+                    material.opacity = opacity;
+                    material.transparent = opacity < 1.0;
+                }
+                this.viewer.SetMaterialOpacity (materialIndex, opacity);
+            },
+            onMaterialSpecularChanged : (materialIndex, color) => {
+                if (this.model === null) {
+                    return;
+                }
+                let material = this.model.GetMaterial (materialIndex);
+                if (material !== undefined && material.specular !== undefined) {
+                    material.specular = color;
+                }
+                this.viewer.SetMaterialSpecular (materialIndex, color);
+            },
             onResizeRequested : () => {
                 this.layouter.Resize ();
             },
@@ -925,7 +976,7 @@ export class Website
                 this.sidebar.AddObject3DProperties (this.model, meshInstance);
             },
             onMaterialSelected : (materialIndex) => {
-                this.sidebar.AddMaterialProperties (this.model.GetMaterial (materialIndex));
+                this.sidebar.AddMaterialProperties (this.model.GetMaterial (materialIndex), materialIndex);
             },
             onResizeRequested : () => {
                 this.layouter.Resize ();

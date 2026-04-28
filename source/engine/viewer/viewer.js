@@ -2,7 +2,7 @@ import { Coord3D, CoordDistance3D, SubCoord3D } from '../geometry/coord3d.js';
 import { DegRad, Direction, IsEqual } from '../geometry/geometry.js';
 import { ColorComponentToFloat } from '../model/color.js';
 import { CreateHighlightMaterials, ShadingType } from '../threejs/threeutils.js';
-import { Camera, NavigationMode, ProjectionMode } from './camera.js';
+import { Camera, NavigationMode, ProjectionMode, ViewPreset } from './camera.js';
 import { GetDomElementInnerDimensions } from './domutils.js';
 import { Navigation } from './navigation.js';
 import { ShadingModel } from './shadingmodel.js';
@@ -36,6 +36,73 @@ export function GetDefaultCamera (direction)
         );
     }
     return null;
+}
+
+export function GetViewPresetCamera (currentCamera, viewPreset, boundingSphere)
+{
+    if (currentCamera === null) {
+        return null;
+    }
+
+    let newCamera = currentCamera.Clone ();
+    let center = newCamera.center.Clone ();
+    if (boundingSphere !== null) {
+        center = new Coord3D (boundingSphere.center.x, boundingSphere.center.y, boundingSphere.center.z);
+    }
+
+    let distance = CoordDistance3D (currentCamera.eye, currentCamera.center);
+    if (boundingSphere !== null) {
+        let fieldOfView = currentCamera.fov / 2.0;
+        distance = boundingSphere.radius / Math.sin (fieldOfView * DegRad);
+        distance *= 1.5;
+    }
+
+    switch (viewPreset) {
+        case ViewPreset.Top:
+            newCamera.eye = new Coord3D (center.x, center.y + distance, center.z);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 0.0, 1.0);
+            break;
+        case ViewPreset.Bottom:
+            newCamera.eye = new Coord3D (center.x, center.y - distance, center.z);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 0.0, -1.0);
+            break;
+        case ViewPreset.Front:
+            newCamera.eye = new Coord3D (center.x, center.y, center.z + distance);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 1.0, 0.0);
+            break;
+        case ViewPreset.Back:
+            newCamera.eye = new Coord3D (center.x, center.y, center.z - distance);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 1.0, 0.0);
+            break;
+        case ViewPreset.Left:
+            newCamera.eye = new Coord3D (center.x - distance, center.y, center.z);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 1.0, 0.0);
+            break;
+        case ViewPreset.Right:
+            newCamera.eye = new Coord3D (center.x + distance, center.y, center.z);
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 1.0, 0.0);
+            break;
+        case ViewPreset.Isometric:
+            let isoFactor = distance / Math.sqrt (3.0);
+            newCamera.eye = new Coord3D (
+                center.x + isoFactor,
+                center.y + isoFactor,
+                center.z + isoFactor
+            );
+            newCamera.center = center;
+            newCamera.up = new Coord3D (0.0, 1.0, 0.0);
+            break;
+        default:
+            return null;
+    }
+
+    return newCamera;
 }
 
 export function TraverseThreeObject (object, processor)
@@ -384,6 +451,22 @@ export class Viewer
         let newCamera = this.upVector.Flip (oldCamera);
         this.navigation.MoveCamera (newCamera, 0);
         this.Render ();
+    }
+
+    SetViewPreset (viewPreset, animate)
+    {
+        let oldCamera = this.navigation.GetCamera ();
+        let boundingSphere = this.GetBoundingSphere ((meshUserData) => {
+            return true;
+        });
+        let newCamera = GetViewPresetCamera (oldCamera, viewPreset, boundingSphere);
+        if (newCamera === null) {
+            return false;
+        }
+        let animationSteps = animate ? this.settings.animationSteps : 0;
+        this.navigation.MoveCamera (newCamera, animationSteps);
+        this.Render ();
+        return true;
     }
 
     Render ()

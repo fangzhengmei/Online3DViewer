@@ -14,6 +14,28 @@ export const NavigationMode =
 };
 
 /**
+ * Camera view presets.
+ * @enum
+ */
+export const ViewPreset =
+{
+    /** Top view (looking down along Y axis, up is Z). */
+	Top : 1,
+    /** Bottom view (looking up along Y axis, up is Z). */
+	Bottom : 2,
+    /** Front view (looking along Z axis, up is Y). */
+	Front : 3,
+    /** Back view (looking along -Z axis, up is Y). */
+	Back : 4,
+    /** Left view (looking along X axis, up is Y). */
+	Left : 5,
+    /** Right view (looking along -X axis, up is Y). */
+	Right : 6,
+    /** Isometric view. */
+	Isometric : 7
+};
+
+/**
  * Camera projection mode.
  * @enum
  */

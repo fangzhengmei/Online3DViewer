@@ -681,6 +681,18 @@ export class Website
         AddButton (this.toolbar, 'view_isometric', Loc ('Isometric view'), ['only_on_model'], () => {
             this.viewer.SetViewPreset (ViewPreset.Isometric, true);
         });
+        AddButton (this.toolbar, 'view_bottom', Loc ('Bottom view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Bottom, true);
+        });
+        AddButton (this.toolbar, 'view_back', Loc ('Back view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Back, true);
+        });
+        AddButton (this.toolbar, 'view_left', Loc ('Left view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Left, true);
+        });
+        AddButton (this.toolbar, 'view_right', Loc ('Right view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Right, true);
+        });
         AddSeparator (this.toolbar, ['only_on_model']);
         AddButton (this.toolbar, 'up_y', Loc ('Set Y axis as up vector'), ['only_on_model'], () => {
             this.viewer.SetUpVector (Direction.Y, true);

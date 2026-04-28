@@ -203,6 +203,12 @@ export class NavigatorMeshesPanel extends NavigatorPanel
             ShowDomElement (buttons.separator, showTree);
             ShowDomElement (buttons.expandAll.div, showTree);
             ShowDomElement (buttons.collapseAll.div, showTree);
+            ShowDomElement (buttons.separator2, showTree);
+            ShowDomElement (buttons.selectAll.div, showTree);
+            ShowDomElement (buttons.deselectAll.div, showTree);
+            ShowDomElement (buttons.showSelected.div, showTree);
+            ShowDomElement (buttons.hideSelected.div, showTree);
+            ShowDomElement (buttons.fitSelected.div, showTree);
         }
 
         function UpdateView (panel, importResult)
@@ -250,6 +256,37 @@ export class NavigatorMeshesPanel extends NavigatorPanel
             collapseAll : {
                 name : Loc ('Collapse all'),
                 icon : 'collapse',
+                div : null,
+                iconDiv : null
+            },
+            separator2 : null,
+            selectAll : {
+                name : Loc ('Select all'),
+                icon : 'visible',
+                div : null,
+                iconDiv : null
+            },
+            deselectAll : {
+                name : Loc ('Deselect all'),
+                icon : 'hidden',
+                div : null,
+                iconDiv : null
+            },
+            showSelected : {
+                name : Loc ('Show selected'),
+                icon : 'visible',
+                div : null,
+                iconDiv : null
+            },
+            hideSelected : {
+                name : Loc ('Hide selected'),
+                icon : 'hidden',
+                div : null,
+                iconDiv : null
+            },
+            fitSelected : {
+                name : Loc ('Fit selected to window'),
+                icon : 'fit',
                 div : null,
                 iconDiv : null
             },
@@ -304,6 +341,28 @@ export class NavigatorMeshesPanel extends NavigatorPanel
                 this.rootItem.ExpandAll (false);
             });
 
+            this.buttons.separator2 = AddDiv (this.buttonsDiv, 'ov_navigator_buttons_separator');
+
+            CreateButton (this.buttonsDiv, this.buttons.selectAll, null, () => {
+                this.SelectAllItems (true);
+            });
+
+            CreateButton (this.buttonsDiv, this.buttons.deselectAll, null, () => {
+                this.SelectAllItems (false);
+            });
+
+            CreateButton (this.buttonsDiv, this.buttons.showSelected, null, () => {
+                this.SetSelectedItemsVisibility (true);
+            });
+
+            CreateButton (this.buttonsDiv, this.buttons.hideSelected, null, () => {
+                this.SetSelectedItemsVisibility (false);
+            });
+
+            CreateButton (this.buttonsDiv, this.buttons.fitSelected, null, () => {
+                this.FitSelectedToWindow ();
+            });
+
             CreateButton (this.buttonsDiv, this.buttons.showHideMeshes, 'right', () => {
                 let nodeId = this.rootItem.GetNodeId ();
                 this.callbacks.onNodeShowHide (nodeId);
@@ -320,6 +379,12 @@ export class NavigatorMeshesPanel extends NavigatorPanel
 
     FillMeshTree (model)
     {
+        const isTreeView = this.mode === MeshesPanelMode.TreeView;
+        const hasCheckbox = true;
+        const editable = true;
+
+        const panel = this;
+
         function AddMeshToNodeTree (panel, node, mesh, meshIndex, parentItem, mode)
         {
             let meshName = GetMeshName (node.GetName (), mesh.GetName ());
@@ -334,7 +399,16 @@ export class NavigatorMeshesPanel extends NavigatorPanel
                 },
                 onSelected : (selectedMeshId) => {
                     panel.callbacks.onMeshSelected (selectedMeshId);
+                },
+                onCheckboxChange : (item, checked) => {
+                    panel.OnItemCheckboxChange (item, checked);
+                },
+                onNameChange : (item, newName, oldName) => {
+                    panel.OnItemNameChange (item, newName, oldName);
                 }
+            }, {
+                hasCheckbox : hasCheckbox,
+                editable : editable
             });
             panel.meshInstanceIdToItem.set (meshInstanceId.GetKey (), meshItem);
             parentItem.AddChild (meshItem);
@@ -350,7 +424,16 @@ export class NavigatorMeshesPanel extends NavigatorPanel
                 },
                 onFitToWindow : (selectedNodeId) => {
                     panel.callbacks.onNodeFitToWindow (selectedNodeId);
+                },
+                onCheckboxChange : (item, checked) => {
+                    panel.OnItemCheckboxChange (item, checked);
+                },
+                onNameChange : (item, newName, oldName) => {
+                    panel.OnItemNameChange (item, newName, oldName);
                 }
+            }, {
+                hasCheckbox : hasCheckbox,
+                editable : editable
             });
             panel.nodeIdToItem.set (nodeId, nodeItem);
             return nodeItem;
@@ -503,5 +586,75 @@ export class NavigatorMeshesPanel extends NavigatorPanel
     {
         this.ShowAllMeshes (false);
         this.ToggleMeshVisibility (meshInstanceId);
+    }
+
+    SelectAllItems (select)
+    {
+        if (this.rootItem === null) {
+            return;
+        }
+        this.EnumerateNodeItems ((nodeItem) => {
+            nodeItem.SetChecked (select, false);
+            return true;
+        });
+        this.EnumerateMeshItems ((meshItem) => {
+            meshItem.SetChecked (select, false);
+            return true;
+        });
+    }
+
+    SetSelectedItemsVisibility (show)
+    {
+        this.EnumerateNodeItems ((nodeItem) => {
+            if (nodeItem.IsChecked ()) {
+                nodeItem.SetVisible (show, NavigatorItemRecurse.Children);
+            }
+            return true;
+        });
+        this.EnumerateMeshItems ((meshItem) => {
+            if (meshItem.IsChecked ()) {
+                meshItem.SetVisible (show, NavigatorItemRecurse.Parents);
+            }
+            return true;
+        });
+        this.callbacks.onMeshVisibilityChanged ();
+    }
+
+    FitSelectedToWindow ()
+    {
+        let selectedMeshInstanceIds = new Set ();
+        this.EnumerateMeshItems ((meshItem) => {
+            if (meshItem.IsChecked ()) {
+                selectedMeshInstanceIds.add (meshItem.GetMeshInstanceId ());
+            }
+            return true;
+        });
+        this.EnumerateNodeItems ((nodeItem) => {
+            if (nodeItem.IsChecked ()) {
+                nodeItem.EnumerateMeshItems ((meshItem) => {
+                    selectedMeshInstanceIds.add (meshItem.GetMeshInstanceId ());
+                    return true;
+                });
+            }
+            return true;
+        });
+        if (selectedMeshInstanceIds.size > 0) {
+            this.callbacks.onFitMeshesToWindow (selectedMeshInstanceIds);
+        }
+    }
+
+    OnItemCheckboxChange (item, checked)
+    {
+        if (item instanceof NodeItem && checked) {
+            item.EnumerateMeshItems ((meshItem) => {
+                meshItem.SetChecked (true, false);
+                return true;
+            });
+        }
+    }
+
+    OnItemNameChange (item, newName, oldName)
+    {
+        item.SetName (newName);
     }
 }

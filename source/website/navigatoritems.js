@@ -22,11 +22,16 @@ export class MaterialItem extends TreeViewSingleItem
 
 export class MeshItem extends TreeViewButtonItem
 {
-    constructor (name, icon, meshInstanceId, callbacks)
+    constructor (name, icon, meshInstanceId, callbacks, options = {})
     {
-        super (name, icon);
+        const treeViewOptions = {
+            hasCheckbox : options.hasCheckbox || false,
+            editable : options.editable || false
+        };
+        super (name, icon, treeViewOptions);
 
         this.meshInstanceId = meshInstanceId;
+        this.callbacks = callbacks;
         this.visible = true;
 
         this.fitToWindowButton = new TreeViewButton ('fit');
@@ -44,6 +49,22 @@ export class MeshItem extends TreeViewButtonItem
         this.OnClick (() => {
             callbacks.onSelected (this.meshInstanceId);
         });
+
+        if (treeViewOptions.hasCheckbox) {
+            this.OnCheckboxChange ((checked) => {
+                if (IsDefined (this.callbacks.onCheckboxChange)) {
+                    this.callbacks.onCheckboxChange (this, checked);
+                }
+            });
+        }
+
+        if (treeViewOptions.editable) {
+            this.OnNameChange ((newName, oldName) => {
+                if (IsDefined (this.callbacks.onNameChange)) {
+                    this.callbacks.onNameChange (this, newName, oldName);
+                }
+            });
+        }
     }
 
     GetMeshInstanceId ()
@@ -78,9 +99,13 @@ export class MeshItem extends TreeViewButtonItem
 
 export class NodeItem extends TreeViewGroupButtonItem
 {
-    constructor (name, nodeId, callbacks)
+    constructor (name, nodeId, callbacks, options = {})
     {
-        super (name, null);
+        const treeViewOptions = {
+            hasCheckbox : options.hasCheckbox || false,
+            editable : options.editable || false
+        };
+        super (name, null, treeViewOptions);
         this.nodeId = nodeId;
         this.callbacks = callbacks;
         this.visible = true;
@@ -96,6 +121,22 @@ export class NodeItem extends TreeViewGroupButtonItem
             this.callbacks.onShowHide (nodeId);
         });
         this.AppendButton (this.showHideButton);
+
+        if (treeViewOptions.hasCheckbox) {
+            this.OnCheckboxChange ((checked) => {
+                if (IsDefined (this.callbacks.onCheckboxChange)) {
+                    this.callbacks.onCheckboxChange (this, checked);
+                }
+            });
+        }
+
+        if (treeViewOptions.editable) {
+            this.OnNameChange ((newName, oldName) => {
+                if (IsDefined (this.callbacks.onNameChange)) {
+                    this.callbacks.onNameChange (this, newName, oldName);
+                }
+            });
+        }
     }
 
     GetNodeId ()
@@ -156,6 +197,20 @@ export class NodeItem extends TreeViewGroupButtonItem
         for (let child of this.children) {
             if (child instanceof NodeItem) {
                 child.EnumerateMeshItems (processor);
+            } else if (child instanceof MeshItem) {
+                processor (child);
+            }
+        }
+    }
+
+    EnumerateAllItems (processor)
+    {
+        if (!processor (this)) {
+            return;
+        }
+        for (let child of this.children) {
+            if (child instanceof NodeItem) {
+                child.EnumerateAllItems (processor);
             } else if (child instanceof MeshItem) {
                 processor (child);
             }

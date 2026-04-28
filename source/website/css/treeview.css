@@ -41,11 +41,76 @@ div.ov_tree_view div.ov_tree_item_icon
 	float: left;
 }
 
+div.ov_tree_view div.ov_tree_item_checkbox
+{
+	width: 14px;
+	height: 14px;
+	margin: 7px 5px 7px 3px;
+	float: left;
+	border: 1px solid var(--ov_border_color);
+	border-radius: 3px;
+	background-color: var(--ov_background_color);
+	cursor: pointer;
+	position: relative;
+	box-sizing: border-box;
+	transition: all 0.15s ease;
+}
+
+div.ov_tree_view div.ov_tree_item_checkbox:hover
+{
+	border-color: var(--ov_accent_color);
+}
+
+div.ov_tree_view div.ov_tree_item_checkbox.checked
+{
+	background-color: var(--ov_accent_color);
+	border-color: var(--ov_accent_color);
+}
+
+div.ov_tree_view div.ov_tree_item_checkbox.checked::after
+{
+	content: '';
+	position: absolute;
+	left: 3px;
+	top: 0px;
+	width: 5px;
+	height: 9px;
+	border: solid white;
+	border-width: 0 2px 2px 0;
+	transform: rotate(45deg);
+}
+
 div.ov_tree_view div.ov_tree_item_name
 {
 	padding: 4px 5px;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+div.ov_tree_view div.ov_tree_item_name.editable
+{
+	cursor: text;
+}
+
+div.ov_tree_view div.ov_tree_item.editing div.ov_tree_item_name
+{
+	display: none;
+}
+
+div.ov_tree_view div.ov_tree_item_edit_input
+{
+	padding: 3px 4px;
+	margin: 0 5px;
+	border: 1px solid var(--ov_accent_color);
+	border-radius: 3px;
+	background: var(--ov_input_background_color);
+	color: var(--ov_text_color);
+	font-size: inherit;
+	outline: none;
+	min-width: 50px;
+	max-width: 300px;
+	overflow: hidden;
 	white-space: nowrap;
 }
 

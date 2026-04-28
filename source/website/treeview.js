@@ -10,6 +10,61 @@ export function ScrollToView (element)
     });
 }
 
+export class TreeViewCheckbox
+{
+    constructor (checked = false)
+    {
+        this.checked = checked;
+        this.mainElement = CreateDiv ('ov_tree_item_checkbox');
+        this.mainElement.addEventListener ('click', (ev) => {
+            ev.stopPropagation ();
+            this.Toggle ();
+        });
+        this.UpdateVisualState ();
+    }
+
+    IsChecked ()
+    {
+        return this.checked;
+    }
+
+    SetChecked (checked, triggerEvent = true)
+    {
+        if (this.checked === checked) {
+            return;
+        }
+        this.checked = checked;
+        this.UpdateVisualState ();
+        if (triggerEvent && IsDefined (this.onChange)) {
+            this.onChange (this.checked);
+        }
+    }
+
+    Toggle ()
+    {
+        this.SetChecked (!this.checked);
+    }
+
+    OnChange (handler)
+    {
+        this.onChange = handler;
+    }
+
+    UpdateVisualState ()
+    {
+        if (this.checked) {
+            this.mainElement.classList.add ('checked');
+        } else {
+            this.mainElement.classList.remove ('checked');
+        }
+    }
+
+    GetDomElement ()
+    {
+        return this.mainElement;
+    }
+}
+
 export class TreeViewButton
 {
     constructor (imagePath)
@@ -41,16 +96,61 @@ export class TreeViewButton
 
 export class TreeViewItem
 {
-    constructor (name, icon)
+    constructor (name, icon, options = {})
     {
         this.name = name;
         this.parent = null;
+        this.editable = options.editable || false;
+        this.hasCheckbox = options.hasCheckbox || false;
+        this.checkbox = null;
+        this.isEditing = false;
+        this.editInput = null;
+
         this.mainElement = CreateDiv ('ov_tree_item');
         this.mainElement.setAttribute ('title', this.name);
+
+        if (this.hasCheckbox) {
+            this.checkbox = new TreeViewCheckbox ();
+            InsertDomElementBefore (this.checkbox.GetDomElement (), null);
+            this.mainElement.appendChild (this.checkbox.GetDomElement ());
+        }
+
         this.nameElement = AddDiv (this.mainElement, 'ov_tree_item_name', this.name);
         if (IsDefined (icon)) {
             let iconElement = CreateSvgIconElement (icon, 'ov_tree_item_icon');
             InsertDomElementBefore (iconElement, this.nameElement);
+        }
+
+        if (this.editable) {
+            this.nameElement.classList.add ('editable');
+            this.mainElement.addEventListener ('dblclick', (ev) => {
+                if (!this.isEditing) {
+                    this.StartEdit ();
+                }
+            });
+        }
+    }
+
+    IsChecked ()
+    {
+        if (this.checkbox === null) {
+            return false;
+        }
+        return this.checkbox.IsChecked ();
+    }
+
+    SetChecked (checked, triggerEvent = true)
+    {
+        if (this.checkbox === null) {
+            return;
+        }
+        this.checkbox.SetChecked (checked, triggerEvent);
+    }
+
+    OnCheckboxChange (handler)
+    {
+        if (this.checkbox !== null) {
+            this.checkbox.OnChange (handler);
         }
     }
 
@@ -70,13 +170,100 @@ export class TreeViewItem
     {
         parentDiv.appendChild (this.mainElement);
     }
+
+    GetName ()
+    {
+        return this.name;
+    }
+
+    SetName (name)
+    {
+        this.name = name;
+        this.nameElement.textContent = name;
+        this.mainElement.setAttribute ('title', name);
+    }
+
+    StartEdit ()
+    {
+        if (!this.editable || this.isEditing) {
+            return;
+        }
+        this.isEditing = true;
+        this.nameElement.style.display = 'none';
+        this.mainElement.classList.add ('editing');
+
+        this.editInput = CreateDiv ('ov_tree_item_edit_input');
+        this.editInput.contentEditable = 'true';
+        this.editInput.textContent = this.name;
+        InsertDomElementAfter (this.editInput, this.nameElement);
+
+        this.editInput.focus ();
+        const range = document.createRange ();
+        range.selectNodeContents (this.editInput);
+        const selection = window.getSelection ();
+        selection.removeAllRanges ();
+        selection.addRange (range);
+
+        const finishEdit = () => {
+            this.FinishEdit (true);
+        };
+
+        const cancelEdit = () => {
+            this.FinishEdit (false);
+        };
+
+        this.editInput.addEventListener ('blur', cancelEdit);
+        this.editInput.addEventListener ('keydown', (ev) => {
+            if (ev.key === 'Enter') {
+                ev.preventDefault ();
+                this.editInput.removeEventListener ('blur', cancelEdit);
+                finishEdit ();
+            } else if (ev.key === 'Escape') {
+                this.editInput.removeEventListener ('blur', cancelEdit);
+                cancelEdit ();
+            }
+        });
+    }
+
+    FinishEdit (accept)
+    {
+        if (!this.isEditing) {
+            return;
+        }
+
+        let newName = this.name;
+        if (accept && this.editInput !== null) {
+            const inputValue = this.editInput.textContent.trim ();
+            if (inputValue.length > 0) {
+                newName = inputValue;
+            }
+        }
+
+        if (accept && newName !== this.name && IsDefined (this.onNameChange)) {
+            this.onNameChange (newName, this.name);
+        }
+
+        if (this.editInput !== null) {
+            this.editInput.remove ();
+            this.editInput = null;
+        }
+
+        this.nameElement.style.display = '';
+        this.mainElement.classList.remove ('editing');
+        this.isEditing = false;
+    }
+
+    OnNameChange (handler)
+    {
+        this.onNameChange = handler;
+    }
 }
 
 export class TreeViewSingleItem extends TreeViewItem
 {
-    constructor (name, icon)
+    constructor (name, icon, options = {})
     {
-        super (name, icon);
+        super (name, icon, options);
         this.selected = false;
     }
 
@@ -103,9 +290,9 @@ export class TreeViewSingleItem extends TreeViewItem
 
 export class TreeViewButtonItem extends TreeViewSingleItem
 {
-    constructor (name, icon)
+    constructor (name, icon, options = {})
     {
-        super (name, icon);
+        super (name, icon, options);
         this.buttonsDiv = CreateDiv ('ov_tree_item_button_container');
         InsertDomElementBefore (this.buttonsDiv, this.nameElement);
     }
@@ -118,9 +305,9 @@ export class TreeViewButtonItem extends TreeViewSingleItem
 
 export class TreeViewGroupItem extends TreeViewItem
 {
-    constructor (name, icon)
+    constructor (name, icon, options = {})
     {
-        super (name, icon);
+        super (name, icon, options);
         this.children = [];
         this.isVisible = true;
         this.isChildrenVisible = false;
@@ -195,13 +382,63 @@ export class TreeViewGroupItem extends TreeViewItem
         }
         return this.childrenDiv;
     }
+
+    EnumerateChildren (processor, recursive = true)
+    {
+        for (let child of this.children) {
+            if (processor (child) === false) {
+                return;
+            }
+            if (recursive && child instanceof TreeViewGroupItem) {
+                child.EnumerateChildren (processor, recursive);
+            }
+        }
+    }
+
+    SetCheckedRecursive (checked)
+    {
+        this.SetChecked (checked, false);
+        this.EnumerateChildren ((child) => {
+            if (child instanceof TreeViewItem) {
+                child.SetChecked (checked, false);
+            }
+        }, true);
+    }
+
+    GetCheckedChildCount ()
+    {
+        let count = 0;
+        if (this.IsChecked ()) {
+            count += 1;
+        }
+        this.EnumerateChildren ((child) => {
+            if (child instanceof TreeViewItem && child.IsChecked ()) {
+                count += 1;
+            }
+        }, true);
+        return count;
+    }
+
+    GetCheckedItems ()
+    {
+        let items = [];
+        if (this.IsChecked ()) {
+            items.push (this);
+        }
+        this.EnumerateChildren ((child) => {
+            if (child instanceof TreeViewItem && child.IsChecked ()) {
+                items.push (child);
+            }
+        }, true);
+        return items;
+    }
 }
 
 export class TreeViewGroupButtonItem extends TreeViewGroupItem
 {
-    constructor (name, icon)
+    constructor (name, icon, options = {})
     {
-        super (name, icon);
+        super (name, icon, options);
         this.buttonsDiv = CreateDiv ('ov_tree_item_button_container');
         InsertDomElementBefore (this.buttonsDiv, this.nameElement);
     }

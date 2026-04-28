@@ -121,6 +121,12 @@ export class Navigator
             },
             onViewTypeChanged : () => {
                 this.SetSelection (null);
+            },
+            onMeshVisibilityChanged : () => {
+                this.callbacks.onMeshVisibilityChanged ();
+            },
+            onFitMeshesToWindow : (meshInstanceIdSet) => {
+                this.callbacks.fitMeshesToWindow (meshInstanceIdSet);
             }
         });
     }

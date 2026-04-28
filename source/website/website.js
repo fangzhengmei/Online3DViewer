@@ -1,7 +1,7 @@
 import { GetFileExtension, TransformFileHostUrls } from '../engine/io/fileutils.js';
 import { InputFilesFromFileObjects, InputFilesFromUrls } from '../engine/import/importerfiles.js';
 import { ImportErrorCode, ImportSettings } from '../engine/import/importer.js';
-import { NavigationMode, ProjectionMode } from '../engine/viewer/camera.js';
+import { NavigationMode, ProjectionMode, ViewPreset } from '../engine/viewer/camera.js';
 import { RGBColor } from '../engine/model/color.js';
 import { Viewer } from '../engine/viewer/viewer.js';
 import { AddDiv, AddDomElement, ShowDomElement, SetDomElementOuterHeight, CreateDomElement, GetDomElementOuterWidth } from '../engine/viewer/domutils.js';
@@ -671,6 +671,17 @@ export class Website
         AddButton (this.toolbar, 'fit', Loc ('Fit model to window'), ['only_on_model'], () => {
             this.FitModelToWindow (false);
         });
+        AddSeparator (this.toolbar, ['only_on_model']);
+        AddButton (this.toolbar, 'view_top', Loc ('Top view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Top, true);
+        });
+        AddButton (this.toolbar, 'view_front', Loc ('Front view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Front, true);
+        });
+        AddButton (this.toolbar, 'view_isometric', Loc ('Isometric view'), ['only_on_model'], () => {
+            this.viewer.SetViewPreset (ViewPreset.Isometric, true);
+        });
+        AddSeparator (this.toolbar, ['only_on_model']);
         AddButton (this.toolbar, 'up_y', Loc ('Set Y axis as up vector'), ['only_on_model'], () => {
             this.viewer.SetUpVector (Direction.Y, true);
         });

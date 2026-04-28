@@ -29,6 +29,8 @@ import { EnumeratePlugins, PluginType } from './pluginregistry.js';
 import { EnvironmentSettings } from '../engine/viewer/shadingmodel.js';
 import { IntersectionMode } from '../engine/viewer/viewermodel.js';
 import { Loc } from '../engine/core/localization.js';
+import { MaterialHistory, MaterialProperty } from './materialhistory.js';
+import { MaterialType } from '../engine/model/material.js';
 
 const WebsiteUIState =
 {
@@ -198,6 +200,7 @@ export class Website
         this.uiState = WebsiteUIState.Undefined;
         this.layouter = new WebsiteLayouter (this.parameters, this.navigator, this.sidebar, this.viewer, this.measureTool);
         this.model = null;
+        this.materialHistory = new MaterialHistory ();
     }
 
     Load ()
@@ -236,6 +239,18 @@ export class Website
         window.addEventListener ('resize', () => {
 			this.layouter.Resize ();
 		});
+
+        window.addEventListener ('keydown', (event) => {
+            if (event.ctrlKey || event.metaKey) {
+                if (event.key === 'z' && !event.shiftKey) {
+                    event.preventDefault ();
+                    this.UndoMaterialEdit ();
+                } else if (event.key === 'y' || (event.key === 'z' && event.shiftKey)) {
+                    event.preventDefault ();
+                    this.RedoMaterialEdit ();
+                }
+            }
+        });
     }
 
     HasLoadedModel ()
@@ -290,6 +305,7 @@ export class Website
         this.sidebar.Clear ();
 
         this.measureTool.SetActive (false);
+        this.materialHistory.Clear ();
     }
 
     OnModelLoaded (importResult, threeObject)
@@ -301,6 +317,101 @@ export class Website
         this.navigator.FillTree (importResult);
         this.sidebar.UpdateControlsVisibility ();
         this.FitModelToWindow (true);
+        for (let i = 0; i < this.model.MaterialCount (); i++) {
+            this.materialHistory.SaveOriginalMaterial (i, this.model.GetMaterial (i));
+        }
+    }
+
+    ResetMaterial (materialIndex)
+    {
+        if (this.model === null || materialIndex === null) {
+            return;
+        }
+        let originalMaterial = this.materialHistory.GetOriginalMaterial (materialIndex);
+        if (originalMaterial === null) {
+            return;
+        }
+        let material = this.model.GetMaterial (materialIndex);
+        if (material === undefined) {
+            return;
+        }
+
+        originalMaterial.CopyPropertiesTo (material);
+
+        this.viewer.SetMaterialColor (materialIndex, material.color);
+        this.viewer.SetMaterialEmissive (materialIndex, material.emissive);
+        this.viewer.SetMaterialOpacity (materialIndex, material.opacity);
+        if (material.type === MaterialType.Physical) {
+            this.viewer.SetMaterialMetalness (materialIndex, material.metalness);
+            this.viewer.SetMaterialRoughness (materialIndex, material.roughness);
+        } else if (material.type === MaterialType.Phong) {
+            this.viewer.SetMaterialSpecular (materialIndex, material.specular);
+            this.viewer.SetMaterialShininess (materialIndex, material.shininess);
+        }
+
+        if (this.sidebar !== undefined && this.sidebar !== null) {
+            this.sidebar.AddMaterialProperties (material, materialIndex);
+        }
+    }
+
+    UndoMaterialEdit ()
+    {
+        if (!this.materialHistory.CanUndo () || this.model === null) {
+            return;
+        }
+        let entry = this.materialHistory.Undo ();
+        if (entry === null) {
+            return;
+        }
+        this.ApplyMaterialProperty (entry.materialIndex, entry.property, entry.value);
+    }
+
+    RedoMaterialEdit ()
+    {
+        if (!this.materialHistory.CanRedo () || this.model === null) {
+            return;
+        }
+        let entry = this.materialHistory.Redo ();
+        if (entry === null) {
+            return;
+        }
+        this.ApplyMaterialProperty (entry.materialIndex, entry.property, entry.value);
+    }
+
+    ApplyMaterialProperty (materialIndex, property, value)
+    {
+        let material = this.model.GetMaterial (materialIndex);
+        if (material === undefined) {
+            return;
+        }
+
+        switch (property) {
+            case MaterialProperty.Color:
+                material.color = value.Clone ();
+                this.viewer.SetMaterialColor (materialIndex, material.color);
+                break;
+            case MaterialProperty.Metalness:
+                material.metalness = value;
+                this.viewer.SetMaterialMetalness (materialIndex, material.metalness);
+                break;
+            case MaterialProperty.Roughness:
+                material.roughness = value;
+                this.viewer.SetMaterialRoughness (materialIndex, material.roughness);
+                break;
+            case MaterialProperty.Opacity:
+                material.opacity = value;
+                material.transparent = value < 1.0;
+                this.viewer.SetMaterialOpacity (materialIndex, material.opacity);
+                break;
+            case MaterialProperty.Specular:
+                material.specular = value.Clone ();
+                this.viewer.SetMaterialSpecular (materialIndex, material.specular);
+                break;
+        }
+
+        if (this.sidebar !== undefined && this.sidebar !== null) {
+            this.sidebar.AddMaterialProperties (material, materialIndex);
+        }
     }
 
     OnModelClicked (button, mouseCoordinates)
@@ -831,7 +942,9 @@ export class Website
                 }
                 let material = this.model.GetMaterial (materialIndex);
                 if (material !== undefined) {
+                    let oldColor = material.color.Clone ();
                     material.color = color;
+                    this.materialHistory.Push (materialIndex, MaterialProperty.Color, oldColor, color);
                 }
                 this.viewer.SetMaterialColor (materialIndex, color);
             },
@@ -841,7 +954,9 @@ export class Website
                 }
                 let material = this.model.GetMaterial (materialIndex);
                 if (material !== undefined && material.metalness !== undefined) {
+                    let oldValue = material.metalness;
                     material.metalness = metalness;
+                    this.materialHistory.Push (materialIndex, MaterialProperty.Metalness, oldValue, metalness);
                 }
                 this.viewer.SetMaterialMetalness (materialIndex, metalness);
             },
@@ -851,7 +966,9 @@ export class Website
                 }
                 let material = this.model.GetMaterial (materialIndex);
                 if (material !== undefined && material.roughness !== undefined) {
+                    let oldValue = material.roughness;
                     material.roughness = roughness;
+                    this.materialHistory.Push (materialIndex, MaterialProperty.Roughness, oldValue, roughness);
                 }
                 this.viewer.SetMaterialRoughness (materialIndex, roughness);
             },
@@ -861,8 +978,10 @@ export class Website
                 }
                 let material = this.model.GetMaterial (materialIndex);
                 if (material !== undefined) {
+                    let oldValue = material.opacity;
                     material.opacity = opacity;
                     material.transparent = opacity < 1.0;
+                    this.materialHistory.Push (materialIndex, MaterialProperty.Opacity, oldValue, opacity);
                 }
                 this.viewer.SetMaterialOpacity (materialIndex, opacity);
             },
@@ -872,9 +991,26 @@ export class Website
                 }
                 let material = this.model.GetMaterial (materialIndex);
                 if (material !== undefined && material.specular !== undefined) {
+                    let oldColor = material.specular.Clone ();
                     material.specular = color;
+                    this.materialHistory.Push (materialIndex, MaterialProperty.Specular, oldColor, color);
                 }
                 this.viewer.SetMaterialSpecular (materialIndex, color);
+            },
+            onMaterialReset : (materialIndex) => {
+                this.ResetMaterial (materialIndex);
+            },
+            onMaterialUndo : () => {
+                this.UndoMaterialEdit ();
+            },
+            onMaterialRedo : () => {
+                this.RedoMaterialEdit ();
+            },
+            onCanUndo : () => {
+                return this.materialHistory.CanUndo ();
+            },
+            onCanRedo : () => {
+                return this.materialHistory.CanRedo ();
             },
             onResizeRequested : () => {
                 this.layouter.Resize ();

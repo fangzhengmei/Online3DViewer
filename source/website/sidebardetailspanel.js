@@ -275,6 +275,16 @@ export class SidebarDetailsPanel extends SidebarPanel
         } else if (material.type === MaterialType.Physical) {
             AddTextureMap (this, table, Loc ('Metallic Map'), material.metalnessMap);
         }
+
+        if (hasEditableCallbacks && materialIndex !== null && this.callbacks.onMaterialReset !== undefined) {
+            let resetRow = AddDiv (this.contentDiv, 'ov_property_table_row');
+            let resetCell = AddDiv (resetRow, 'ov_property_table_cell');
+            let resetButton = AddDiv (resetCell, 'ov_property_table_button', Loc ('Reset to Original Values'));
+            resetButton.addEventListener ('click', () => {
+                this.callbacks.onMaterialReset (materialIndex);
+            });
+        }
+
         this.Resize ();
     }
 

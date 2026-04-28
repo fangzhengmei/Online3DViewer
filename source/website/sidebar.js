@@ -56,6 +56,11 @@ export class Sidebar
             },
             onMaterialSpecularChanged : (materialIndex, color) => {
                 this.callbacks.onMaterialSpecularChanged (materialIndex, color);
+            },
+            onMaterialReset : (materialIndex) => {
+                if (this.callbacks.onMaterialReset !== undefined) {
+                    this.callbacks.onMaterialReset (materialIndex);
+                }
             }
         });
 

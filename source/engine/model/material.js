@@ -109,6 +109,22 @@ export class MaterialBase
         }
         return true;
     }
+
+    Clone ()
+    {
+        let clone = new MaterialBase (this.type);
+        this.CopyPropertiesTo (clone);
+        return clone;
+    }
+
+    CopyPropertiesTo (target)
+    {
+        target.type = this.type;
+        target.source = this.source;
+        target.name = this.name;
+        target.color = this.color.Clone ();
+        target.vertexColors = this.vertexColors;
+    }
 }
 
 export class FaceMaterial extends MaterialBase
@@ -165,6 +181,27 @@ export class FaceMaterial extends MaterialBase
         }
         return true;
     }
+
+    Clone ()
+    {
+        let clone = new FaceMaterial (this.type);
+        this.CopyPropertiesTo (clone);
+        return clone;
+    }
+
+    CopyPropertiesTo (target)
+    {
+        super.CopyPropertiesTo (target);
+        target.emissive = this.emissive.Clone ();
+        target.opacity = this.opacity;
+        target.transparent = this.transparent;
+        target.diffuseMap = this.diffuseMap;
+        target.bumpMap = this.bumpMap;
+        target.normalMap = this.normalMap;
+        target.emissiveMap = this.emissiveMap;
+        target.alphaTest = this.alphaTest;
+        target.multiplyDiffuseMap = this.multiplyDiffuseMap;
+    }
 }
 
 export class PhongMaterial extends FaceMaterial
@@ -198,6 +235,22 @@ export class PhongMaterial extends FaceMaterial
         }
         return true;
     }
+
+    Clone ()
+    {
+        let clone = new PhongMaterial ();
+        this.CopyPropertiesTo (clone);
+        return clone;
+    }
+
+    CopyPropertiesTo (target)
+    {
+        super.CopyPropertiesTo (target);
+        target.ambient = this.ambient.Clone ();
+        target.specular = this.specular.Clone ();
+        target.shininess = this.shininess;
+        target.specularMap = this.specularMap;
+    }
 }
 
 export class PhysicalMaterial extends FaceMaterial
@@ -226,6 +279,21 @@ export class PhysicalMaterial extends FaceMaterial
             return false;
         }
         return true;
+    }
+
+    Clone ()
+    {
+        let clone = new PhysicalMaterial ();
+        this.CopyPropertiesTo (clone);
+        return clone;
+    }
+
+    CopyPropertiesTo (target)
+    {
+        super.CopyPropertiesTo (target);
+        target.metalness = this.metalness;
+        target.roughness = this.roughness;
+        target.metalnessMap = this.metalnessMap;
     }
 }
 

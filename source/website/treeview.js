@@ -109,13 +109,13 @@ export class TreeViewItem
         this.mainElement = CreateDiv ('ov_tree_item');
         this.mainElement.setAttribute ('title', this.name);
 
+        this.nameElement = AddDiv (this.mainElement, 'ov_tree_item_name', this.name);
+
         if (this.hasCheckbox) {
             this.checkbox = new TreeViewCheckbox ();
-            InsertDomElementBefore (this.checkbox.GetDomElement (), null);
-            this.mainElement.appendChild (this.checkbox.GetDomElement ());
+            InsertDomElementBefore (this.checkbox.GetDomElement (), this.nameElement);
         }
 
-        this.nameElement = AddDiv (this.mainElement, 'ov_tree_item_name', this.name);
         if (IsDefined (icon)) {
             let iconElement = CreateSvgIconElement (icon, 'ov_tree_item_icon');
             InsertDomElementBefore (iconElement, this.nameElement);

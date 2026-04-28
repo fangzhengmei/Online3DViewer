@@ -79,11 +79,17 @@ export function ClearDomElement (element)
 
 export function InsertDomElementBefore (newElement, existingElement)
 {
+    if (existingElement === null || existingElement.parentNode === null) {
+        return;
+    }
     existingElement.parentNode.insertBefore (newElement, existingElement);
 }
 
 export function InsertDomElementAfter (newElement, existingElement)
 {
+    if (existingElement === null || existingElement.parentNode === null) {
+        return;
+    }
     existingElement.parentNode.insertBefore (newElement, existingElement.nextSibling);
 }
 

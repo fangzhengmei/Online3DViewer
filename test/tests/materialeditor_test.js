@@ -499,7 +499,7 @@ describe ('Material History - Core Behavior', function () {
         let history = new OV.MaterialHistory ();
 
         for (let i = 0; i < 25; i++) {
-            history.Push (0, OV.MaterialProperty.Opacity, 1.0, i * 0.01);
+            history.Push (0, OV.MaterialProperty.Opacity, i * 0.01, 1.0);
         }
 
         assert.strictEqual (history.UndoCount (), 20);

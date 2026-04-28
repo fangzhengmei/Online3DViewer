@@ -30,6 +30,7 @@ import property_test from './tests/property_test.js';
 import parameterlist_test from './tests/parameterlist_test.js';
 import treeview_test from './tests/treeview_test.js';
 import navigatoritem_test from './tests/navigatoritem_test.js';
+import batchoperation_test from './tests/batchoperation_test.js';
 
 process.chdir (path.resolve ());
 SetGlobals ();
@@ -62,3 +63,4 @@ property_test ();
 parameterlist_test ();
 treeview_test ();
 navigatoritem_test ();
+batchoperation_test ();

@@ -50,6 +50,7 @@ import { RGBColor, RGBAColor, ColorComponentFromFloat, ColorComponentToFloat, RG
 import { GeneratorParams, Generator, GeneratorHelper, GenerateCuboid, GenerateCone, GenerateCylinder, GenerateSphere, GeneratePlatonicSolid } from './model/generator.js';
 import { Line } from './model/line.js';
 import { TextureMap, MaterialBase, FaceMaterial, PhongMaterial, PhysicalMaterial, TextureMapIsEqual, TextureIsEqual, MaterialType, MaterialSource } from './model/material.js';
+import { MaterialHistory, MaterialProperty } from './model/materialhistory.js';
 import { Mesh } from './model/mesh.js';
 import { MeshPrimitiveBuffer, MeshBuffer, ConvertMeshToMeshBuffer } from './model/meshbuffer.js';
 import { MeshInstanceId, MeshInstance } from './model/meshinstance.js';
@@ -248,6 +249,8 @@ export {
     TextureIsEqual,
     MaterialType,
     MaterialSource,
+    MaterialHistory,
+    MaterialProperty,
     Mesh,
     MeshPrimitiveBuffer,
     MeshBuffer,

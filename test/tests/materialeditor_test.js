@@ -328,4 +328,339 @@ describe ('Material Editor - Clone and Copy', function () {
     });
 });
 
+describe ('Material History - Core Behavior', function () {
+    it ('Initial State', function () {
+        let history = new OV.MaterialHistory ();
+        assert.strictEqual (history.CanUndo (), false);
+        assert.strictEqual (history.CanRedo (), false);
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('Push Single Entry', function () {
+        let history = new OV.MaterialHistory ();
+        let oldColor = new OV.RGBColor (255, 0, 0);
+        let newColor = new OV.RGBColor (0, 255, 0);
+
+        history.Push (0, OV.MaterialProperty.Color, oldColor, newColor);
+
+        assert.strictEqual (history.CanUndo (), true);
+        assert.strictEqual (history.CanRedo (), false);
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('Push Multiple Entries', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (0, OV.MaterialProperty.Metalness, 0.0, 0.5);
+        history.Push (0, OV.MaterialProperty.Roughness, 1.0, 0.3);
+
+        assert.strictEqual (history.CanUndo (), true);
+        assert.strictEqual (history.CanRedo (), false);
+        assert.strictEqual (history.UndoCount (), 3);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('Undo Single Operation', function () {
+        let history = new OV.MaterialHistory ();
+        let oldColor = new OV.RGBColor (255, 0, 0);
+        let newColor = new OV.RGBColor (0, 255, 0);
+
+        history.Push (0, OV.MaterialProperty.Color, oldColor, newColor);
+
+        let undoResult = history.Undo ();
+
+        assert.notStrictEqual (undoResult, null);
+        assert.strictEqual (undoResult.materialIndex, 0);
+        assert.strictEqual (undoResult.property, OV.MaterialProperty.Color);
+        assert.deepStrictEqual (undoResult.value, oldColor);
+
+        assert.strictEqual (history.CanUndo (), false);
+        assert.strictEqual (history.CanRedo (), true);
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 1);
+    });
+
+    it ('Redo Single Operation', function () {
+        let history = new OV.MaterialHistory ();
+        let oldColor = new OV.RGBColor (255, 0, 0);
+        let newColor = new OV.RGBColor (0, 255, 0);
+
+        history.Push (0, OV.MaterialProperty.Color, oldColor, newColor);
+        history.Undo ();
+
+        let redoResult = history.Redo ();
+
+        assert.notStrictEqual (redoResult, null);
+        assert.strictEqual (redoResult.materialIndex, 0);
+        assert.strictEqual (redoResult.property, OV.MaterialProperty.Color);
+        assert.deepStrictEqual (redoResult.value, newColor);
+
+        assert.strictEqual (history.CanUndo (), true);
+        assert.strictEqual (history.CanRedo (), false);
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('Undo Multiple Operations', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (0, OV.MaterialProperty.Metalness, 0.0, 0.5);
+        history.Push (0, OV.MaterialProperty.Roughness, 1.0, 0.3);
+
+        assert.strictEqual (history.UndoCount (), 3);
+
+        let undo1 = history.Undo ();
+        assert.strictEqual (undo1.property, OV.MaterialProperty.Roughness);
+        assert.strictEqual (history.UndoCount (), 2);
+        assert.strictEqual (history.RedoCount (), 1);
+
+        let undo2 = history.Undo ();
+        assert.strictEqual (undo2.property, OV.MaterialProperty.Metalness);
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.RedoCount (), 2);
+
+        let undo3 = history.Undo ();
+        assert.strictEqual (undo3.property, OV.MaterialProperty.Color);
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 3);
+    });
+
+    it ('Redo Multiple Operations', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (0, OV.MaterialProperty.Metalness, 0.0, 0.5);
+
+        history.Undo ();
+        history.Undo ();
+
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 2);
+
+        let redo1 = history.Redo ();
+        assert.strictEqual (redo1.property, OV.MaterialProperty.Color);
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.RedoCount (), 1);
+
+        let redo2 = history.Redo ();
+        assert.strictEqual (redo2.property, OV.MaterialProperty.Metalness);
+        assert.strictEqual (history.UndoCount (), 2);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('New Operation Clears Redo Stack', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (0, OV.MaterialProperty.Metalness, 0.0, 0.5);
+
+        history.Undo ();
+        history.Undo ();
+
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 2);
+
+        history.Push (0, OV.MaterialProperty.Roughness, 1.0, 0.3);
+
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.CanRedo (), false);
+        assert.strictEqual (history.RedoCount (), 0);
+    });
+
+    it ('Undo on Empty Stack Returns Null', function () {
+        let history = new OV.MaterialHistory ();
+        let result = history.Undo ();
+        assert.strictEqual (result, null);
+    });
+
+    it ('Redo on Empty Stack Returns Null', function () {
+        let history = new OV.MaterialHistory ();
+        let result = history.Redo ();
+        assert.strictEqual (result, null);
+    });
+
+    it ('History Size Limit - Enforces 20 Steps Limit', function () {
+        let history = new OV.MaterialHistory ();
+
+        assert.strictEqual (history.GetMaxHistorySize (), 20);
+
+        for (let i = 0; i < 30; i++) {
+            history.Push (i % 5, OV.MaterialProperty.Metalness, 0.0, i / 100);
+        }
+
+        assert.strictEqual (history.UndoCount (), 20);
+    });
+
+    it ('History Size Limit - Oldest Entries are Removed', function () {
+        let history = new OV.MaterialHistory ();
+
+        for (let i = 0; i < 25; i++) {
+            history.Push (0, OV.MaterialProperty.Opacity, 1.0, i * 0.01);
+        }
+
+        assert.strictEqual (history.UndoCount (), 20);
+
+        for (let i = 0; i < 20; i++) {
+            let undoResult = history.Undo ();
+            assert.notStrictEqual (undoResult, null);
+            let expectedValue = (24 - i) * 0.01;
+            assert.strictEqual (undoResult.value, expectedValue);
+        }
+
+        assert.strictEqual (history.Undo (), null);
+    });
+
+    it ('Clear Resets All State', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (0, OV.MaterialProperty.Metalness, 0.0, 0.5);
+        history.Undo ();
+
+        assert.strictEqual (history.UndoCount (), 1);
+        assert.strictEqual (history.RedoCount (), 1);
+
+        history.Clear ();
+
+        assert.strictEqual (history.UndoCount (), 0);
+        assert.strictEqual (history.RedoCount (), 0);
+        assert.strictEqual (history.CanUndo (), false);
+        assert.strictEqual (history.CanRedo (), false);
+    });
+});
+
+describe ('Material History - Original Material Storage', function () {
+    it ('Save and Get Original Material', function () {
+        let history = new OV.MaterialHistory ();
+        let material = new OV.PhysicalMaterial ();
+        material.name = 'Original';
+        material.color = new OV.RGBColor (100, 150, 200);
+        material.metalness = 0.3;
+
+        history.SaveOriginalMaterial (0, material);
+
+        let saved = history.GetOriginalMaterial (0);
+        assert.notStrictEqual (saved, null);
+        assert.strictEqual (saved.name, 'Original');
+        assert.deepStrictEqual (saved.color, new OV.RGBColor (100, 150, 200));
+        assert.strictEqual (saved.metalness, 0.3);
+    });
+
+    it ('Original Material is a Clone', function () {
+        let history = new OV.MaterialHistory ();
+        let material = new OV.PhysicalMaterial ();
+        material.name = 'Original';
+        material.color = new OV.RGBColor (100, 150, 200);
+
+        history.SaveOriginalMaterial (0, material);
+
+        material.name = 'Modified';
+        material.color = new OV.RGBColor (0, 0, 0);
+
+        let saved = history.GetOriginalMaterial (0);
+        assert.strictEqual (saved.name, 'Original');
+        assert.deepStrictEqual (saved.color, new OV.RGBColor (100, 150, 200));
+    });
+
+    it ('HasOriginalMaterial', function () {
+        let history = new OV.MaterialHistory ();
+
+        assert.strictEqual (history.HasOriginalMaterial (0), false);
+        assert.strictEqual (history.HasOriginalMaterial (1), false);
+
+        let material = new OV.PhysicalMaterial ();
+        history.SaveOriginalMaterial (0, material);
+
+        assert.strictEqual (history.HasOriginalMaterial (0), true);
+        assert.strictEqual (history.HasOriginalMaterial (1), false);
+    });
+
+    it ('Get Non-Existent Original Material Returns Null', function () {
+        let history = new OV.MaterialHistory ();
+        let result = history.GetOriginalMaterial (99);
+        assert.strictEqual (result, null);
+    });
+
+    it ('Clear Removes All Original Materials', function () {
+        let history = new OV.MaterialHistory ();
+
+        let material1 = new OV.PhysicalMaterial ();
+        let material2 = new OV.PhongMaterial ();
+
+        history.SaveOriginalMaterial (0, material1);
+        history.SaveOriginalMaterial (1, material2);
+
+        assert.strictEqual (history.HasOriginalMaterial (0), true);
+        assert.strictEqual (history.HasOriginalMaterial (1), true);
+
+        history.Clear ();
+
+        assert.strictEqual (history.HasOriginalMaterial (0), false);
+        assert.strictEqual (history.HasOriginalMaterial (1), false);
+    });
+});
+
+describe ('Material History - Value Cloning', function () {
+    it ('RGBColor Values are Cloned', function () {
+        let history = new OV.MaterialHistory ();
+        let oldColor = new OV.RGBColor (255, 0, 0);
+        let newColor = new OV.RGBColor (0, 255, 0);
+
+        history.Push (0, OV.MaterialProperty.Color, oldColor, newColor);
+
+        oldColor.r = 0;
+        newColor.g = 0;
+
+        let undoResult = history.Undo ();
+        assert.strictEqual (undoResult.value.r, 255);
+        assert.strictEqual (undoResult.value.g, 0);
+        assert.strictEqual (undoResult.value.b, 0);
+
+        history.Redo ();
+        let redoResult = history.Undo ();
+        history.Redo ();
+    });
+
+    it ('Numeric Values are Stored Correctly', function () {
+        let history = new OV.MaterialHistory ();
+        let oldValue = 0.0;
+        let newValue = 0.5;
+
+        history.Push (0, OV.MaterialProperty.Metalness, oldValue, newValue);
+
+        let undoResult = history.Undo ();
+        assert.strictEqual (undoResult.value, 0.0);
+
+        let redoResult = history.Redo ();
+        history.Undo ();
+        redoResult = history.Redo ();
+    });
+
+    it ('Multiple Material Indices', function () {
+        let history = new OV.MaterialHistory ();
+
+        history.Push (0, OV.MaterialProperty.Color, new OV.RGBColor (255, 0, 0), new OV.RGBColor (0, 255, 0));
+        history.Push (1, OV.MaterialProperty.Metalness, 0.0, 0.5);
+        history.Push (0, OV.MaterialProperty.Roughness, 1.0, 0.3);
+
+        assert.strictEqual (history.UndoCount (), 3);
+
+        let undo1 = history.Undo ();
+        assert.strictEqual (undo1.materialIndex, 0);
+        assert.strictEqual (undo1.property, OV.MaterialProperty.Roughness);
+
+        let undo2 = history.Undo ();
+        assert.strictEqual (undo2.materialIndex, 1);
+        assert.strictEqual (undo2.property, OV.MaterialProperty.Metalness);
+
+        let undo3 = history.Undo ();
+        assert.strictEqual (undo3.materialIndex, 0);
+        assert.strictEqual (undo3.property, OV.MaterialProperty.Color);
+    });
+});
+
 }

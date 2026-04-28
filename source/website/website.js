@@ -29,7 +29,7 @@ import { EnumeratePlugins, PluginType } from './pluginregistry.js';
 import { EnvironmentSettings } from '../engine/viewer/shadingmodel.js';
 import { IntersectionMode } from '../engine/viewer/viewermodel.js';
 import { Loc } from '../engine/core/localization.js';
-import { MaterialHistory, MaterialProperty } from './materialhistory.js';
+import { MaterialHistory, MaterialProperty } from '../engine/model/materialhistory.js';
 import { MaterialType } from '../engine/model/material.js';
 
 const WebsiteUIState =

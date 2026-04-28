@@ -1,4 +1,4 @@
-import { RGBColor } from '../engine/model/color.js';
+import { RGBColor } from './color.js';
 
 export const MaterialProperty =
 {
@@ -128,5 +128,10 @@ export class MaterialHistory
     RedoCount ()
     {
         return this.redoStack.length;
+    }
+
+    GetMaxHistorySize ()
+    {
+        return MAX_HISTORY_SIZE;
     }
 }

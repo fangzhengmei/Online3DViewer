@@ -407,6 +407,17 @@ export class Website
                 material.specular = value.Clone ();
                 this.viewer.SetMaterialSpecular (materialIndex, material.specular);
                 break;
+            case MaterialProperty.Emissive:
+                material.emissive = value.Clone ();
+                this.viewer.SetMaterialEmissive (materialIndex, material.emissive);
+                break;
+            case MaterialProperty.Shininess:
+                material.shininess = value;
+                this.viewer.SetMaterialShininess (materialIndex, material.shininess);
+                break;
+            case MaterialProperty.Ambient:
+                material.ambient = value.Clone ();
+                break;
         }
 
         if (this.sidebar !== undefined && this.sidebar !== null) {

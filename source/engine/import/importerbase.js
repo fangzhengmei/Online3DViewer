@@ -101,7 +101,13 @@ export class ImporterBase
     {
         this.error = true;
         if (message !== undefined && message !== null) {
-            this.message = message;
+            if (typeof message === 'string') {
+                this.message = message;
+            } else if (message instanceof Error) {
+                this.message = message.message;
+            } else {
+                this.message = message.toString ();
+            }
         }
     }
 

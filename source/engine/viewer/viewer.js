@@ -10,6 +10,157 @@ import { ViewerModel, ViewerMainModel } from './viewermodel.js';
 
 import * as THREE from 'three';
 
+export const ClippingPlaneAxis =
+{
+    X : 0,
+    Y : 1,
+    Z : 2
+};
+
+export class ClippingPlane
+{
+    constructor (axis = ClippingPlaneAxis.Z, offset = 0.0, invert = false)
+    {
+        this.axis = axis;
+        this.offset = offset;
+        this.invert = invert;
+        this.threePlane = this.CreateThreePlane ();
+    }
+
+    Clone ()
+    {
+        return new ClippingPlane (this.axis, this.offset, this.invert);
+    }
+
+    CreateThreePlane ()
+    {
+        let normal = new THREE.Vector3 (0, 0, 1);
+        switch (this.axis) {
+            case ClippingPlaneAxis.X:
+                normal = new THREE.Vector3 (1, 0, 0);
+                break;
+            case ClippingPlaneAxis.Y:
+                normal = new THREE.Vector3 (0, 1, 0);
+                break;
+            case ClippingPlaneAxis.Z:
+                normal = new THREE.Vector3 (0, 0, 1);
+                break;
+        }
+        if (this.invert) {
+            normal.negate ();
+        }
+        return new THREE.Plane (normal, -this.offset);
+    }
+
+    SetAxis (axis)
+    {
+        this.axis = axis;
+        this.threePlane = this.CreateThreePlane ();
+    }
+
+    SetOffset (offset)
+    {
+        this.offset = offset;
+        this.threePlane.constant = -this.offset;
+    }
+
+    SetInvert (invert)
+    {
+        this.invert = invert;
+        this.threePlane = this.CreateThreePlane ();
+    }
+
+    GetThreePlane ()
+    {
+        return this.threePlane;
+    }
+}
+
+export class ClippingPlaneManager
+{
+    constructor ()
+    {
+        this.clippingPlanes = [];
+        this.isEnabled = true;
+    }
+
+    IsEnabled ()
+    {
+        return this.isEnabled;
+    }
+
+    SetEnabled (enabled)
+    {
+        this.isEnabled = enabled;
+    }
+
+    GetPlaneCount ()
+    {
+        return this.clippingPlanes.length;
+    }
+
+    GetPlane (index)
+    {
+        if (index < 0 || index >= this.clippingPlanes.length) {
+            return null;
+        }
+        return this.clippingPlanes[index];
+    }
+
+    AddPlane (axis = ClippingPlaneAxis.Z, offset = 0.0, invert = false)
+    {
+        let plane = new ClippingPlane (axis, offset, invert);
+        this.clippingPlanes.push (plane);
+        return this.clippingPlanes.length - 1;
+    }
+
+    RemovePlane (index)
+    {
+        if (index < 0 || index >= this.clippingPlanes.length) {
+            return false;
+        }
+        this.clippingPlanes.splice (index, 1);
+        return true;
+    }
+
+    RemoveAllPlanes ()
+    {
+        this.clippingPlanes = [];
+    }
+
+    UpdatePlane (index, axis = null, offset = null, invert = null)
+    {
+        let plane = this.GetPlane (index);
+        if (plane === null) {
+            return false;
+        }
+        if (axis !== null) {
+            plane.SetAxis (axis);
+        }
+        if (offset !== null) {
+            plane.SetOffset (offset);
+        }
+        if (invert !== null) {
+            plane.SetInvert (invert);
+        }
+        return true;
+    }
+
+    GetThreePlanes ()
+    {
+        if (!this.isEnabled) {
+            return [];
+        }
+        return this.clippingPlanes.map (plane => plane.GetThreePlane ());
+    }
+
+    Reset ()
+    {
+        this.clippingPlanes = [];
+        this.isEnabled = true;
+    }
+}
+
 export function GetDefaultCamera (direction)
 {
     let fieldOfView = 45.0;
@@ -172,6 +323,7 @@ export class Viewer
         this.shadingModel = null;
         this.navigation = null;
         this.upVector = null;
+        this.clippingPlaneManager = null;
         this.settings = {
             animationSteps : 40
         };
@@ -189,12 +341,15 @@ export class Viewer
 
         this.renderer = new THREE.WebGLRenderer (parameters);
         this.renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        this.renderer.localClippingEnabled = true;
 
         if (window.devicePixelRatio) {
             this.renderer.setPixelRatio (window.devicePixelRatio);
         }
         this.renderer.setClearColor ('#ffffff', 1.0);
         this.renderer.setSize (this.canvas.width, this.canvas.height);
+
+        this.clippingPlaneManager = new ClippingPlaneManager ();
 
         this.scene = new THREE.Scene ();
         this.mainModel = new ViewerMainModel (this.scene);
@@ -423,7 +578,95 @@ export class Viewer
         const shadingType = GetShadingTypeOfObject (object);
         this.mainModel.SetMainObject (object);
         this.shadingModel.SetShadingType (shadingType);
+        this.ApplyClippingPlanesToMaterials ();
 
+        this.Render ();
+    }
+
+    ApplyClippingPlanesToMaterials ()
+    {
+        let clippingPlanes = this.clippingPlaneManager.GetThreePlanes ();
+        this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+            if (Array.isArray (mesh.material)) {
+                for (let material of mesh.material) {
+                    if (material.isMeshPhongMaterial || material.isMeshStandardMaterial) {
+                        material.clippingPlanes = clippingPlanes;
+                    }
+                }
+            } else {
+                if (mesh.material.isMeshPhongMaterial || mesh.material.isMeshStandardMaterial) {
+                    mesh.material.clippingPlanes = clippingPlanes;
+                }
+            }
+        });
+    }
+
+    GetClippingPlaneManager ()
+    {
+        return this.clippingPlaneManager;
+    }
+
+    SetClippingEnabled (enabled)
+    {
+        this.clippingPlaneManager.SetEnabled (enabled);
+        this.ApplyClippingPlanesToMaterials ();
+        this.Render ();
+    }
+
+    IsClippingEnabled ()
+    {
+        return this.clippingPlaneManager.IsEnabled ();
+    }
+
+    AddClippingPlane (axis = ClippingPlaneAxis.Z, offset = 0.0, invert = false)
+    {
+        let index = this.clippingPlaneManager.AddPlane (axis, offset, invert);
+        this.ApplyClippingPlanesToMaterials ();
+        this.Render ();
+        return index;
+    }
+
+    RemoveClippingPlane (index)
+    {
+        let result = this.clippingPlaneManager.RemovePlane (index);
+        if (result) {
+            this.ApplyClippingPlanesToMaterials ();
+            this.Render ();
+        }
+        return result;
+    }
+
+    RemoveAllClippingPlanes ()
+    {
+        this.clippingPlaneManager.RemoveAllPlanes ();
+        this.ApplyClippingPlanesToMaterials ();
+        this.Render ();
+    }
+
+    UpdateClippingPlane (index, axis = null, offset = null, invert = null)
+    {
+        let result = this.clippingPlaneManager.UpdatePlane (index, axis, offset, invert);
+        if (result) {
+            this.ApplyClippingPlanesToMaterials ();
+            this.Render ();
+        }
+        return result;
+    }
+
+    GetClippingPlaneCount ()
+    {
+        return this.clippingPlaneManager.GetPlaneCount ();
+    }
+
+    GetClippingPlane (index)
+    {
+        return this.clippingPlaneManager.GetPlane (index);
+    }
+
+    ResetClippingPlanes ()
+    {
+        this.clippingPlaneManager.Reset ();
+        this.ApplyClippingPlanesToMaterials ();
         this.Render ();
     }
 
@@ -437,7 +680,7 @@ export class Viewer
     {
         this.mainModel.Clear ();
         this.extraModel.Clear ();
-        this.Render ();
+        this.ResetClippingPlanes ();
     }
 
     ClearExtra ()

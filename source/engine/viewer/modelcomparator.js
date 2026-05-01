@@ -67,7 +67,6 @@ export class ModelDiffInfo
 	AddMeshDiff (meshDiff)
 	{
 		this.meshDiffs.push (meshDiff);
-		this.totalMeshes++;
 
 		if (meshDiff.diffType === DiffType.Added) {
 			this.addedMeshes++;
@@ -398,11 +397,15 @@ export class ModelComparator
 		const usedIndicesB = new Set ();
 
 		for (const meshA of meshesA) {
-			let match = FindMatchingMeshByName (meshA, meshesB, usedIndicesB);
-			if (match === null) {
+			let match = null;
+			const meshAName = meshA.GetName ();
+			if (meshAName !== null && meshAName !== '') {
+				match = FindMatchingMeshByName (meshA, meshesB, usedIndicesB);
+			} else {
 				match = FindMatchingMeshByGeometry (meshA, meshesB, usedIndicesB);
 			}
 
+			this.diffInfo.totalMeshes++;
 			this.diffInfo.totalVertices += meshA.VertexCount ();
 			this.diffInfo.totalTriangles += meshA.TriangleCount ();
 
@@ -507,8 +510,11 @@ export class ModelComparator
 		const usedIndicesB = new Set ();
 
 		for (const meshA of meshesA) {
-			let match = FindMatchingMeshByName (meshA, meshesB, usedIndicesB);
-			if (match === null) {
+			let match = null;
+			const meshAName = meshA.GetName ();
+			if (meshAName !== null && meshAName !== '') {
+				match = FindMatchingMeshByName (meshA, meshesB, usedIndicesB);
+			} else {
 				match = FindMatchingMeshByGeometry (meshA, meshesB, usedIndicesB);
 			}
 

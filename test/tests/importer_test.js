@@ -343,6 +343,23 @@ describe ('Importer Test', function () {
             }
         });
     });
+
+    it ('Empty model (no triangles)', function (done) {
+        let files = [
+            new FileObject ('', 'obj/empty_model.obj')
+        ];
+        ImportFiles (files, {
+            success : function (importer, importResult) {
+                assert.fail ();
+            },
+            error : function (importer, importError) {
+                assert.strictEqual (importError.code, OV.ImportErrorCode.ImportFailed);
+                assert.strictEqual (importError.mainFile, 'empty_model.obj');
+                assert.strictEqual (importError.message, 'The model doesn\'t contain any meshes.');
+                done ();
+            }
+        });
+    });
 });
 
 }

@@ -4,7 +4,6 @@ import { Transformation } from '../geometry/transformation.js';
 import { GetFileName } from '../io/fileutils.js';
 import { PhongMaterial, PhysicalMaterial } from '../model/material.js';
 import { TransformMesh } from '../model/meshutils.js';
-import { IsModelEmpty } from '../model/modelutils.js';
 import { Property, PropertyGroup, PropertyType } from '../model/property.js';
 import { ConvertThreeGeometryToMesh } from '../threejs/threeutils.js';
 import { ImporterBase } from './importerbase.js';
@@ -31,6 +30,11 @@ export class Importer3dm extends ImporterBase
     GetUpDirection ()
     {
         return Direction.Z;
+    }
+
+    GetModelEmptyErrorMessage ()
+    {
+        return Loc ('The model doesn\'t contain any 3D meshes. Try to save the model while you are in shaded view in Rhino.');
     }
 
     ClearContent ()
@@ -72,9 +76,6 @@ export class Importer3dm extends ImporterBase
             return;
         }
         this.ImportRhinoDocument (rhinoDoc);
-        if (IsModelEmpty (this.model)) {
-            this.SetError (Loc ('The model doesn\'t contain any 3D meshes. Try to save the model while you are in shaded view in Rhino.'));
-        }
     }
 
     ImportRhinoDocument (rhinoDoc)

@@ -52,7 +52,7 @@ export class ImporterBase
         }
 
         if (IsModelEmpty (this.model)) {
-            this.SetError (Loc ('The model doesn\'t contain any meshes.'));
+            this.SetError (this.GetModelEmptyErrorMessage ());
             callbacks.onError ();
             callbacks.onComplete ();
             return;
@@ -65,6 +65,11 @@ export class ImporterBase
 
         callbacks.onSuccess ();
         callbacks.onComplete ();
+    }
+
+    GetModelEmptyErrorMessage ()
+    {
+        return Loc ('The model doesn\'t contain any meshes.');
     }
 
     CanImportExtension (extension)

@@ -23,6 +23,8 @@ import { GetDefaultMaterials, ReplaceDefaultMaterialsColor } from '../engine/mod
 import { Direction } from '../engine/geometry/geometry.js';
 import { CookieGetBoolVal, CookieSetBoolVal } from './cookiehandler.js';
 import { MeasureTool } from './measuretool.js';
+import { BoundingBoxChecker } from './boundingboxchecker.js';
+import { ScaleRuler } from './scaleruler.js';
 import { CloseAllDialogs } from './dialog.js';
 import { CreateVerticalSplitter } from './splitter.js';
 import { EnumeratePlugins, PluginType } from './pluginregistry.js';
@@ -40,13 +42,15 @@ const WebsiteUIState =
 
 class WebsiteLayouter
 {
-    constructor (parameters, navigator, sidebar, viewer, measureTool)
+    constructor (parameters, navigator, sidebar, viewer, measureTool, boundingBoxChecker, scaleRuler)
     {
         this.parameters = parameters;
         this.navigator = navigator;
         this.sidebar = sidebar;
         this.viewer = viewer;
         this.measureTool = measureTool;
+        this.boundingBoxChecker = boundingBoxChecker;
+        this.scaleRuler = scaleRuler;
         this.limits = {
             minPanelWidth : 290,
             minCanvasWidth : 100
@@ -176,6 +180,8 @@ class WebsiteLayouter
         this.viewer.Resize (contentWidth - safetyMargin, contentHeight);
 
         this.measureTool.Resize ();
+        this.boundingBoxChecker.Resize ();
+        this.scaleRuler.Resize ();
     }
 }
 
@@ -188,6 +194,8 @@ export class Website
         this.cameraSettings = new CameraSettings ();
         this.viewer = new Viewer ();
         this.measureTool = new MeasureTool (this.viewer, this.settings);
+        this.boundingBoxChecker = new BoundingBoxChecker (this.viewer, this.settings);
+        this.scaleRuler = new ScaleRuler (this.viewer, this.settings);
         this.hashHandler = new HashHandler ();
         this.toolbar = new Toolbar (this.parameters.toolbarDiv);
         this.navigator = new Navigator (this.parameters.navigatorDiv);
@@ -196,7 +204,7 @@ export class Website
         this.themeHandler = new ThemeHandler ();
         this.highlightColor = new RGBColor (142, 201, 240);
         this.uiState = WebsiteUIState.Undefined;
-        this.layouter = new WebsiteLayouter (this.parameters, this.navigator, this.sidebar, this.viewer, this.measureTool);
+        this.layouter = new WebsiteLayouter (this.parameters, this.navigator, this.sidebar, this.viewer, this.measureTool, this.boundingBoxChecker, this.scaleRuler);
         this.model = null;
     }
 
@@ -290,6 +298,8 @@ export class Website
         this.sidebar.Clear ();
 
         this.measureTool.SetActive (false);
+        this.boundingBoxChecker.Clear ();
+        this.scaleRuler.Clear ();
     }
 
     OnModelLoaded (importResult, threeObject)
@@ -300,6 +310,20 @@ export class Website
         this.viewer.SetUpVector (Direction.Y, false);
         this.navigator.FillTree (importResult);
         this.sidebar.UpdateControlsVisibility ();
+
+        let boundingBox = this.viewer.GetBoundingBox ((meshUserData) => {
+            return true;
+        });
+        let boundingSphere = this.viewer.GetBoundingSphere ((meshUserData) => {
+            return true;
+        });
+
+        this.boundingBoxChecker.SetModel (this.model);
+        this.boundingBoxChecker.UpdateBoundingBox (boundingBox);
+
+        this.scaleRuler.SetModel (this.model);
+        this.scaleRuler.SetBoundingSphere (boundingSphere);
+
         this.FitModelToWindow (true);
     }
 
@@ -595,6 +619,9 @@ export class Website
         this.viewer.SetBackgroundColor (this.settings.backgroundColor);
         this.viewer.SetNavigationMode (this.cameraSettings.navigationMode);
         this.viewer.SetProjectionMode (this.cameraSettings.projectionMode);
+        this.viewer.SetRenderCallback (() => {
+            this.scaleRuler.Render ();
+        });
         this.UpdateEnvironmentMap ();
     }
 
@@ -708,6 +735,18 @@ export class Website
             this.measureTool.SetActive (isSelected);
         });
         this.measureTool.SetButton (measureToolButton);
+        AddSeparator (this.toolbar, ['only_full_width', 'only_on_model']);
+        let boundingBoxButton = AddPushButton (this.toolbar, 'details', Loc ('Bounding Box'), ['only_full_width', 'only_on_model'], (isSelected) => {
+            this.boundingBoxChecker.SetActive (isSelected);
+        });
+        this.boundingBoxChecker.SetButton (boundingBoxButton);
+        let scaleRulerButton = AddPushButton (this.toolbar, 'model', Loc ('Scale Ruler'), ['only_full_width', 'only_on_model'], (isSelected) => {
+            this.scaleRuler.SetActive (isSelected);
+            if (isSelected) {
+                this.scaleRuler.Render ();
+            }
+        });
+        this.scaleRuler.SetButton (scaleRulerButton);
         AddSeparator (this.toolbar, ['only_full_width', 'only_on_model']);
         AddButton (this.toolbar, 'download', Loc ('Download'), ['only_full_width', 'only_on_model'], () => {
             HandleEvent ('model_downloaded', '');

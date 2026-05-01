@@ -354,6 +354,141 @@ div.ov_measure_panel div.ov_measure_value
 	margin-right: 10px;
 }
 
+div.ov_boundingbox_panel
+{
+	padding: 10px 15px;
+	position: absolute;
+	border-radius: 10px;
+	left: 0px;
+	top: 0px;
+	font-size: 14px;
+}
+
+div.ov_boundingbox_title
+{
+	font-weight: bold;
+	margin-bottom: 8px;
+	text-align: center;
+	font-size: 15px;
+}
+
+div.ov_boundingbox_content
+{
+	overflow: auto;
+}
+
+div.ov_boundingbox_row
+{
+	overflow: auto;
+	margin: 3px 0px;
+}
+
+div.ov_boundingbox_row.ov_boundingbox_size
+{
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid currentColor;
+	opacity: 0.7;
+}
+
+div.ov_boundingbox_label
+{
+	float: left;
+	margin-right: 8px;
+	opacity: 0.8;
+}
+
+div.ov_boundingbox_value
+{
+	float: left;
+	font-weight: 500;
+}
+
+div.ov_boundingbox_dimension
+{
+	margin-bottom: 2px;
+}
+
+div.ov_scaleruler_panel
+{
+	padding: 8px 12px;
+	position: absolute;
+	border-radius: 8px;
+	left: 0px;
+	bottom: 20px;
+	font-size: 13px;
+}
+
+div.ov_scaleruler_container
+{
+	text-align: center;
+}
+
+div.ov_scaleruler_bar
+{
+	height: 3px;
+	background: currentColor;
+	margin: 5px auto;
+	position: relative;
+	opacity: 0.8;
+}
+
+div.ov_scaleruler_ticks
+{
+	position: absolute;
+	top: -3px;
+	left: 0;
+	right: 0;
+	height: 9px;
+}
+
+div.ov_scaleruler_tick_left
+{
+	position: absolute;
+	left: 0;
+	width: 1px;
+	height: 9px;
+	background: currentColor;
+}
+
+div.ov_scaleruler_tick_middle
+{
+	position: absolute;
+	left: 50%;
+	width: 1px;
+	height: 6px;
+	background: currentColor;
+	margin-left: -0.5px;
+}
+
+div.ov_scaleruler_tick_right
+{
+	position: absolute;
+	right: 0;
+	width: 1px;
+	height: 9px;
+	background: currentColor;
+}
+
+div.ov_scaleruler_label
+{
+	margin: 0 auto;
+	font-weight: 500;
+}
+
+div.ov_scaleruler_info
+{
+	margin-top: 4px;
+	font-size: 11px;
+	opacity: 0.7;
+}
+
+div.ov_scaleruler_nodata
+{
+	opacity: 0.5;
+	text-align: center;
+}
+
 @media (hover)
 {
 

@@ -175,6 +175,7 @@ export class Viewer
         this.settings = {
             animationSteps : 40
         };
+        this.onRender = null;
     }
 
     Init (canvas)
@@ -416,6 +417,15 @@ export class Viewer
 
         this.shadingModel.UpdateByCamera (navigationCamera);
         this.renderer.render (this.scene, this.camera);
+
+        if (this.onRender !== null) {
+            this.onRender ();
+        }
+    }
+
+    SetRenderCallback (onRender)
+    {
+        this.onRender = onRender;
     }
 
     SetMainObject (object)

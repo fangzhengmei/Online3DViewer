@@ -320,9 +320,11 @@ export class Website
 
         this.boundingBoxChecker.SetModel (this.model);
         this.boundingBoxChecker.UpdateBoundingBox (boundingBox);
+        this.boundingBoxChecker.SetActive (true);
 
         this.scaleRuler.SetModel (this.model);
         this.scaleRuler.SetBoundingSphere (boundingSphere);
+        this.scaleRuler.SetActive (true);
 
         this.FitModelToWindow (true);
     }

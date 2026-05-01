@@ -4,6 +4,13 @@ import * as OV from '../../source/engine/main.js';
 export default function suite ()
 {
 
+describe ('ClippingGizmoType', function () {
+    it ('Enum values', function () {
+        assert.strictEqual (OV.ClippingGizmoType.Plane, 0);
+        assert.strictEqual (OV.ClippingGizmoType.Arrow, 1);
+    });
+});
+
 describe ('ClippingPlane', function () {
     it ('Default constructor', function () {
         let plane = new OV.ClippingPlane ();
@@ -48,6 +55,74 @@ describe ('ClippingPlane', function () {
         assert.strictEqual (plane.invert, true);
         plane.SetInvert (false);
         assert.strictEqual (plane.invert, false);
+    });
+
+    it ('GetNormal', function () {
+        let planeX = new OV.ClippingPlane (OV.ClippingPlaneAxis.X, 0.0, false);
+        let normalX = planeX.GetNormal ();
+        assert.strictEqual (normalX.x, 1);
+        assert.strictEqual (normalX.y, 0);
+        assert.strictEqual (normalX.z, 0);
+
+        let planeY = new OV.ClippingPlane (OV.ClippingPlaneAxis.Y, 0.0, false);
+        let normalY = planeY.GetNormal ();
+        assert.strictEqual (normalY.x, 0);
+        assert.strictEqual (normalY.y, 1);
+        assert.strictEqual (normalY.z, 0);
+
+        let planeZ = new OV.ClippingPlane (OV.ClippingPlaneAxis.Z, 0.0, false);
+        let normalZ = planeZ.GetNormal ();
+        assert.strictEqual (normalZ.x, 0);
+        assert.strictEqual (normalZ.y, 0);
+        assert.strictEqual (normalZ.z, 1);
+    });
+
+    it ('GetNormal with invert', function () {
+        let plane = new OV.ClippingPlane (OV.ClippingPlaneAxis.X, 0.0, true);
+        let normal = plane.GetNormal ();
+        assert.strictEqual (normal.x, -1);
+        assert.strictEqual (normal.y, 0);
+        assert.strictEqual (normal.z, 0);
+    });
+
+    it ('GetOrigin', function () {
+        let plane = new OV.ClippingPlane (OV.ClippingPlaneAxis.Z, 5.0, false);
+        let origin = plane.GetOrigin ();
+        assert.strictEqual (origin.x, 0);
+        assert.strictEqual (origin.y, 0);
+        assert.strictEqual (origin.z, 5);
+    });
+});
+
+describe ('ClippingPlaneGizmo', function () {
+    it ('Constructor', function () {
+        let plane = new OV.ClippingPlane (OV.ClippingPlaneAxis.Z, 0.0, false);
+        let gizmo = new OV.ClippingPlaneGizmo (plane, 2.0);
+        assert.ok (gizmo !== null);
+        assert.ok (gizmo.GetRootObject () !== null);
+    });
+
+    it ('SetSelected', function () {
+        let plane = new OV.ClippingPlane (OV.ClippingPlaneAxis.Z, 0.0, false);
+        let gizmo = new OV.ClippingPlaneGizmo (plane, 2.0);
+        assert.strictEqual (gizmo.isSelected, false);
+        gizmo.SetSelected (true);
+        assert.strictEqual (gizmo.isSelected, true);
+        gizmo.SetSelected (false);
+        assert.strictEqual (gizmo.isSelected, false);
+    });
+
+    it ('UpdateTransform', function () {
+        let plane = new OV.ClippingPlane (OV.ClippingPlaneAxis.Z, 0.0, false);
+        let gizmo = new OV.ClippingPlaneGizmo (plane, 2.0);
+        let root = gizmo.GetRootObject ();
+        let initialPosition = root.position.clone ();
+
+        plane.SetOffset (5.0);
+        gizmo.UpdateTransform ();
+
+        let newPosition = root.position;
+        assert.strictEqual (newPosition.z, 5.0);
     });
 });
 
@@ -163,6 +238,54 @@ describe ('ClippingPlaneManager', function () {
         manager.Reset ();
         assert.strictEqual (manager.GetPlaneCount (), 0);
         assert.strictEqual (manager.IsEnabled (), true);
+    });
+
+    it ('GetGizmo', function () {
+        let manager = new OV.ClippingPlaneManager ();
+        assert.strictEqual (manager.GetGizmo (0), null);
+
+        manager.AddPlane (OV.ClippingPlaneAxis.X, 5.0, false);
+        let gizmo = manager.GetGizmo (0);
+        assert.ok (gizmo !== null);
+        assert.ok (gizmo.GetRootObject () !== null);
+    });
+
+    it ('SetSelectedPlane', function () {
+        let manager = new OV.ClippingPlaneManager ();
+        manager.AddPlane (OV.ClippingPlaneAxis.X, 0.0, false);
+        manager.AddPlane (OV.ClippingPlaneAxis.Y, 0.0, false);
+
+        let gizmo0 = manager.GetGizmo (0);
+        let gizmo1 = manager.GetGizmo (1);
+
+        manager.SetSelectedPlane (0);
+        assert.strictEqual (gizmo0.isSelected, true);
+        assert.strictEqual (gizmo1.isSelected, false);
+
+        manager.SetSelectedPlane (1);
+        assert.strictEqual (gizmo0.isSelected, false);
+        assert.strictEqual (gizmo1.isSelected, true);
+
+        manager.SetSelectedPlane (-1);
+        assert.strictEqual (gizmo0.isSelected, false);
+        assert.strictEqual (gizmo1.isSelected, false);
+    });
+
+    it ('UpdateGizmosVisibility', function () {
+        let manager = new OV.ClippingPlaneManager ();
+        manager.AddPlane (OV.ClippingPlaneAxis.X, 0.0, false);
+        let gizmo = manager.GetGizmo (0);
+        let rootObj = gizmo.GetRootObject ();
+
+        assert.strictEqual (rootObj.visible, true);
+
+        manager.SetEnabled (false);
+        manager.UpdateGizmosVisibility ();
+        assert.strictEqual (rootObj.visible, false);
+
+        manager.SetEnabled (true);
+        manager.UpdateGizmosVisibility ();
+        assert.strictEqual (rootObj.visible, true);
     });
 });
 

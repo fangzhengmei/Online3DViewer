@@ -73,7 +73,7 @@ import { GetIntegerFromStyle, GetDomElementExternalWidth, GetDomElementExternalH
 import { EmbeddedViewer, Init3DViewerFromUrlList, Init3DViewerFromFileList, Init3DViewerElements } from './viewer/embeddedviewer.js';
 import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, NavigationType } from './viewer/navigation.js';
 import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
-import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject, ClippingPlaneAxis, ClippingPlane, ClippingPlaneManager } from './viewer/viewer.js';
+import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject, ClippingPlaneAxis, ClippingGizmoType, ClippingPlane, ClippingPlaneGizmo, ClippingPlaneManager } from './viewer/viewer.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
 
 export {
@@ -360,6 +360,8 @@ export {
     SetThreeMeshPolygonOffset,
     IntersectionMode,
     ClippingPlaneAxis,
+    ClippingGizmoType,
     ClippingPlane,
+    ClippingPlaneGizmo,
     ClippingPlaneManager
 };

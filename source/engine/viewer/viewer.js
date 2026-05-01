@@ -1,4 +1,4 @@
-import { Coord3D, CoordDistance3D, SubCoord3D } from '../geometry/coord3d.js';
+import { Coord3D, CoordDistance3D, SubCoord3D, AddCoord3D, CrossVector3D } from '../geometry/coord3d.js';
 import { DegRad, Direction, IsEqual } from '../geometry/geometry.js';
 import { ColorComponentToFloat } from '../model/color.js';
 import { CreateHighlightMaterials, ShadingType } from '../threejs/threeutils.js';
@@ -74,6 +74,178 @@ export class ClippingPlane
     {
         return this.threePlane;
     }
+
+    GetNormal ()
+    {
+        return this.threePlane.normal.clone ();
+    }
+
+    GetOrigin ()
+    {
+        return this.threePlane.normal.clone ().multiplyScalar (-this.threePlane.constant);
+    }
+}
+
+export const ClippingGizmoType =
+{
+    Plane : 0,
+    Arrow : 1
+};
+
+export class ClippingPlaneGizmo
+{
+    constructor (clippingPlane, size = 1.0)
+    {
+        this.clippingPlane = clippingPlane;
+        this.size = size;
+        this.isSelected = false;
+
+        this.rootObject = new THREE.Object3D ();
+        this.rootObject.userData.gizmoType = ClippingGizmoType.Plane;
+
+        this.planeMesh = null;
+        this.arrowMesh = null;
+        this.borderLines = null;
+
+        this.CreateGizmo ();
+        this.UpdateTransform ();
+    }
+
+    CreateGizmo ()
+    {
+        let planeSize = this.size;
+        let halfSize = planeSize / 2;
+
+        let planeGeometry = new THREE.PlaneGeometry (planeSize, planeSize, 10, 10);
+        let planeMaterial = new THREE.MeshBasicMaterial ({
+            color : 0x00aaff,
+            transparent : true,
+            opacity : 0.3,
+            side : THREE.DoubleSide,
+            depthWrite : false
+        });
+        this.planeMesh = new THREE.Mesh (planeGeometry, planeMaterial);
+        this.planeMesh.userData.gizmoType = ClippingGizmoType.Plane;
+        this.rootObject.add (this.planeMesh);
+
+        let borderGeometry = new THREE.BufferGeometry ();
+        let borderVertices = new Float32Array ([
+            -halfSize, -halfSize, 0,
+             halfSize, -halfSize, 0,
+             halfSize,  halfSize, 0,
+            -halfSize,  halfSize, 0,
+            -halfSize, -halfSize, 0
+        ]);
+        borderGeometry.setAttribute ('position', new THREE.BufferAttribute (borderVertices, 3));
+        let borderMaterial = new THREE.LineBasicMaterial ({
+            color : 0x0088cc,
+            transparent : true,
+            opacity : 0.8,
+            depthWrite : false
+        });
+        this.borderLines = new THREE.Line (borderGeometry, borderMaterial);
+        this.borderLines.userData.gizmoType = ClippingGizmoType.Plane;
+        this.rootObject.add (this.borderLines);
+
+        this.CreateArrow ();
+    }
+
+    CreateArrow ()
+    {
+        let arrowLength = this.size * 0.4;
+        let arrowHeadLength = arrowLength * 0.3;
+        let arrowHeadWidth = arrowLength * 0.15;
+
+        let direction = new THREE.Vector3 (0, 0, 1);
+        let origin = new THREE.Vector3 (0, 0, 0);
+
+        let arrowMaterial = new THREE.MeshBasicMaterial ({
+            color : 0xff6600,
+            transparent : true,
+            opacity : 0.9,
+            depthWrite : false
+        });
+
+        let shaftGeometry = new THREE.CylinderGeometry (
+            arrowHeadWidth * 0.3,
+            arrowHeadWidth * 0.3,
+            arrowLength - arrowHeadLength,
+            8
+        );
+        shaftGeometry.translate (0, (arrowLength - arrowHeadLength) / 2, 0);
+        let shaftMesh = new THREE.Mesh (shaftGeometry, arrowMaterial);
+
+        let headGeometry = new THREE.ConeGeometry (
+            arrowHeadWidth,
+            arrowHeadLength,
+            8
+        );
+        headGeometry.translate (0, arrowLength - arrowHeadLength / 2, 0);
+        let headMesh = new THREE.Mesh (headGeometry, arrowMaterial);
+
+        this.arrowMesh = new THREE.Object3D ();
+        this.arrowMesh.add (shaftMesh);
+        this.arrowMesh.add (headMesh);
+        this.arrowMesh.userData.gizmoType = ClippingGizmoType.Arrow;
+
+        let arrowGroup = new THREE.Object3D ();
+        arrowGroup.add (this.arrowMesh);
+        arrowGroup.rotateX (-Math.PI / 2);
+
+        this.rootObject.add (arrowGroup);
+    }
+
+    UpdateTransform ()
+    {
+        let normal = this.clippingPlane.GetNormal ();
+        let origin = this.clippingPlane.GetOrigin ();
+
+        this.rootObject.position.copy (origin);
+
+        let defaultNormal = new THREE.Vector3 (0, 0, 1);
+        let quaternion = new THREE.Quaternion ().setFromUnitVectors (defaultNormal, normal);
+        this.rootObject.quaternion.copy (quaternion);
+    }
+
+    SetSize (size)
+    {
+        this.size = size;
+        this.rootObject.remove (this.planeMesh);
+        this.rootObject.remove (this.borderLines);
+        this.rootObject.clear ();
+        this.CreateGizmo ();
+        this.UpdateTransform ();
+    }
+
+    SetSelected (selected)
+    {
+        this.isSelected = selected;
+        let color = selected ? 0xffff00 : 0x0088cc;
+        if (this.borderLines && this.borderLines.material) {
+            this.borderLines.material.color.setHex (color);
+        }
+        if (this.planeMesh && this.planeMesh.material) {
+            this.planeMesh.material.color.setHex (selected ? 0xffff44 : 0x00aaff);
+        }
+    }
+
+    GetRootObject ()
+    {
+        return this.rootObject;
+    }
+
+    Dispose ()
+    {
+        if (this.planeMesh) {
+            this.planeMesh.geometry.dispose ();
+            this.planeMesh.material.dispose ();
+        }
+        if (this.borderLines) {
+            this.borderLines.geometry.dispose ();
+            this.borderLines.material.dispose ();
+        }
+        this.rootObject.clear ();
+    }
 }
 
 export class ClippingPlaneManager
@@ -81,7 +253,15 @@ export class ClippingPlaneManager
     constructor ()
     {
         this.clippingPlanes = [];
+        this.gizmos = [];
         this.isEnabled = true;
+        this.scene = null;
+        this.defaultGizmoSize = 2.0;
+    }
+
+    SetScene (scene)
+    {
+        this.scene = scene;
     }
 
     IsEnabled ()
@@ -92,6 +272,7 @@ export class ClippingPlaneManager
     SetEnabled (enabled)
     {
         this.isEnabled = enabled;
+        this.UpdateGizmosVisibility ();
     }
 
     GetPlaneCount ()
@@ -107,10 +288,26 @@ export class ClippingPlaneManager
         return this.clippingPlanes[index];
     }
 
+    GetGizmo (index)
+    {
+        if (index < 0 || index >= this.gizmos.length) {
+            return null;
+        }
+        return this.gizmos[index];
+    }
+
     AddPlane (axis = ClippingPlaneAxis.Z, offset = 0.0, invert = false)
     {
         let plane = new ClippingPlane (axis, offset, invert);
         this.clippingPlanes.push (plane);
+
+        let gizmo = new ClippingPlaneGizmo (plane, this.defaultGizmoSize);
+        this.gizmos.push (gizmo);
+
+        if (this.scene !== null) {
+            this.scene.add (gizmo.GetRootObject ());
+        }
+
         return this.clippingPlanes.length - 1;
     }
 
@@ -119,13 +316,24 @@ export class ClippingPlaneManager
         if (index < 0 || index >= this.clippingPlanes.length) {
             return false;
         }
+
+        let gizmo = this.gizmos[index];
+        if (gizmo !== null && this.scene !== null) {
+            this.scene.remove (gizmo.GetRootObject ());
+            gizmo.Dispose ();
+        }
+
         this.clippingPlanes.splice (index, 1);
+        this.gizmos.splice (index, 1);
+
         return true;
     }
 
     RemoveAllPlanes ()
     {
-        this.clippingPlanes = [];
+        for (let i = this.gizmos.length - 1; i >= 0; i--) {
+            this.RemovePlane (i);
+        }
     }
 
     UpdatePlane (index, axis = null, offset = null, invert = null)
@@ -143,6 +351,12 @@ export class ClippingPlaneManager
         if (invert !== null) {
             plane.SetInvert (invert);
         }
+
+        let gizmo = this.GetGizmo (index);
+        if (gizmo !== null) {
+            gizmo.UpdateTransform ();
+        }
+
         return true;
     }
 
@@ -154,9 +368,42 @@ export class ClippingPlaneManager
         return this.clippingPlanes.map (plane => plane.GetThreePlane ());
     }
 
+    UpdateGizmosVisibility ()
+    {
+        for (let gizmo of this.gizmos) {
+            if (gizmo !== null && gizmo.GetRootObject () !== null) {
+                gizmo.GetRootObject ().visible = this.isEnabled;
+            }
+        }
+    }
+
+    UpdateGizmosSize (boundingSphere)
+    {
+        if (boundingSphere === null) {
+            return;
+        }
+        let size = boundingSphere.radius * 2.0;
+        this.defaultGizmoSize = Math.max (size, 1.0);
+        for (let gizmo of this.gizmos) {
+            if (gizmo !== null) {
+                gizmo.SetSize (this.defaultGizmoSize);
+            }
+        }
+    }
+
+    SetSelectedPlane (index)
+    {
+        for (let i = 0; i < this.gizmos.length; i++) {
+            let gizmo = this.gizmos[i];
+            if (gizmo !== null) {
+                gizmo.SetSelected (i === index);
+            }
+        }
+    }
+
     Reset ()
     {
-        this.clippingPlanes = [];
+        this.RemoveAllPlanes ();
         this.isEnabled = true;
     }
 }
@@ -327,6 +574,15 @@ export class Viewer
         this.settings = {
             animationSteps : 40
         };
+
+        this.clippingInteraction = {
+            isDragging : false,
+            selectedPlaneIndex : -1,
+            dragStartMouse : null,
+            dragStartOffset : 0.0,
+            dragPlane : null,
+            dragIntersection : null
+        };
     }
 
     Init (canvas)
@@ -349,9 +605,10 @@ export class Viewer
         this.renderer.setClearColor ('#ffffff', 1.0);
         this.renderer.setSize (this.canvas.width, this.canvas.height);
 
-        this.clippingPlaneManager = new ClippingPlaneManager ();
-
         this.scene = new THREE.Scene ();
+        this.clippingPlaneManager = new ClippingPlaneManager ();
+        this.clippingPlaneManager.SetScene (this.scene);
+
         this.mainModel = new ViewerMainModel (this.scene);
         this.extraModel = new ViewerModel (this.scene);
 
@@ -580,6 +837,11 @@ export class Viewer
         this.shadingModel.SetShadingType (shadingType);
         this.ApplyClippingPlanesToMaterials ();
 
+        let boundingSphere = this.GetBoundingSphere ((meshUserData) => {
+            return true;
+        });
+        this.clippingPlaneManager.UpdateGizmosSize (boundingSphere);
+
         this.Render ();
     }
 
@@ -665,6 +927,9 @@ export class Viewer
 
     ResetClippingPlanes ()
     {
+        this.EndClippingDrag ();
+        this.clippingInteraction.selectedPlaneIndex = -1;
+        this.clippingPlaneManager.SetSelectedPlane (-1);
         this.clippingPlaneManager.Reset ();
         this.ApplyClippingPlanesToMaterials ();
         this.Render ();
@@ -761,6 +1026,139 @@ export class Viewer
         this.mainModel.EnumerateMeshesAndLines ((mesh) => {
             enumerator (mesh.userData);
         });
+    }
+
+    GetClippingGizmoIntersection (mouseCoords)
+    {
+        if (!this.clippingPlaneManager.IsEnabled ()) {
+            return null;
+        }
+
+        let canvasSize = this.GetCanvasSize ();
+        let mousePos = new THREE.Vector2 ();
+        mousePos.x = (mouseCoords.x / canvasSize.width) * 2 - 1;
+        mousePos.y = -(mouseCoords.y / canvasSize.height) * 2 + 1;
+
+        let raycaster = new THREE.Raycaster ();
+        raycaster.setFromCamera (mousePos, this.camera);
+
+        for (let i = 0; i < this.clippingPlaneManager.GetPlaneCount (); i++) {
+            let gizmo = this.clippingPlaneManager.GetGizmo (i);
+            if (gizmo === null) {
+                continue;
+            }
+            let gizmoRoot = gizmo.GetRootObject ();
+            if (!gizmoRoot.visible) {
+                continue;
+            }
+
+            let intersections = raycaster.intersectObject (gizmoRoot, true);
+            if (intersections.length > 0) {
+                return {
+                    planeIndex : i,
+                    intersection : intersections[0]
+                };
+            }
+        }
+
+        return null;
+    }
+
+    GetSelectedClippingPlaneIndex ()
+    {
+        return this.clippingInteraction.selectedPlaneIndex;
+    }
+
+    SetSelectedClippingPlane (index)
+    {
+        if (index < 0 || index >= this.clippingPlaneManager.GetPlaneCount ()) {
+            index = -1;
+        }
+        this.clippingInteraction.selectedPlaneIndex = index;
+        this.clippingPlaneManager.SetSelectedPlane (index);
+        this.Render ();
+    }
+
+    StartClippingDrag (mouseCoords, gizmoIntersection)
+    {
+        let planeIndex = gizmoIntersection.planeIndex;
+        let clippingPlane = this.clippingPlaneManager.GetPlane (planeIndex);
+        if (clippingPlane === null) {
+            return false;
+        }
+
+        this.clippingInteraction.isDragging = true;
+        this.clippingInteraction.selectedPlaneIndex = planeIndex;
+        this.clippingInteraction.dragStartMouse = mouseCoords.Clone ();
+        this.clippingInteraction.dragStartOffset = clippingPlane.offset;
+        this.clippingInteraction.dragIntersection = gizmoIntersection.intersection;
+
+        let planeNormal = clippingPlane.GetNormal ();
+        let planeOrigin = clippingPlane.GetOrigin ();
+        this.clippingInteraction.dragPlane = new THREE.Plane ().setFromNormalAndCoplanarPoint (
+            planeNormal,
+            planeOrigin
+        );
+
+        this.clippingPlaneManager.SetSelectedPlane (planeIndex);
+        this.Render ();
+        return true;
+    }
+
+    UpdateClippingDrag (mouseCoords)
+    {
+        if (!this.clippingInteraction.isDragging) {
+            return false;
+        }
+
+        let planeIndex = this.clippingInteraction.selectedPlaneIndex;
+        let clippingPlane = this.clippingPlaneManager.GetPlane (planeIndex);
+        if (clippingPlane === null) {
+            return false;
+        }
+
+        let canvasSize = this.GetCanvasSize ();
+        let mousePos = new THREE.Vector2 ();
+        mousePos.x = (mouseCoords.x / canvasSize.width) * 2 - 1;
+        mousePos.y = -(mouseCoords.y / canvasSize.height) * 2 + 1;
+
+        let raycaster = new THREE.Raycaster ();
+        raycaster.setFromCamera (mousePos, this.camera);
+
+        let dragPlane = this.clippingInteraction.dragPlane;
+        let intersectionPoint = new THREE.Vector3 ();
+        raycaster.ray.intersectPlane (dragPlane, intersectionPoint);
+
+        if (intersectionPoint === null || !intersectionPoint.isFinite ()) {
+            return false;
+        }
+
+        let planeNormal = clippingPlane.GetNormal ();
+        let startIntersection = this.clippingInteraction.dragIntersection.point;
+        let delta = intersectionPoint.clone ().sub (startIntersection);
+        let offsetDelta = delta.dot (planeNormal);
+
+        let newOffset = this.clippingInteraction.dragStartOffset + offsetDelta;
+        this.UpdateClippingPlane (planeIndex, null, newOffset, null);
+
+        return true;
+    }
+
+    EndClippingDrag ()
+    {
+        if (!this.clippingInteraction.isDragging) {
+            return;
+        }
+
+        this.clippingInteraction.isDragging = false;
+        this.clippingInteraction.dragStartMouse = null;
+        this.clippingInteraction.dragPlane = null;
+        this.clippingInteraction.dragIntersection = null;
+    }
+
+    IsClippingDragActive ()
+    {
+        return this.clippingInteraction.isDragging;
     }
 
     InitNavigation ()

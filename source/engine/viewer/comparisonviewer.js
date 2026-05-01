@@ -64,6 +64,7 @@ export class ComparisonViewer
 		this.renderer.setSize (this.canvas.width, this.canvas.height);
 
 		this.scene = new THREE.Scene ();
+		this.comparator.SetScene (this.scene);
 		this.viewerModelA = new ViewerMainModel (this.scene);
 		this.viewerModelB = new ViewerMainModel (this.scene);
 
@@ -407,6 +408,9 @@ export class ComparisonViewer
 		this.isCompared = false;
 		this.isVisualized = false;
 		this.comparator = new ModelComparator ();
+		if (this.scene !== null) {
+			this.comparator.SetScene (this.scene);
+		}
 		this.Render ();
 	}
 

@@ -75,7 +75,7 @@ import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, Navigati
 import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
 import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject } from './viewer/viewer.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
-import { ModelComparator, DiffType, DiffColor, ModelDiffInfo } from './viewer/modelcomparator.js';
+import { ModelComparator, DiffType, DiffColor, ModelDiffInfo, MeshDiffInfo } from './viewer/modelcomparator.js';
 import { ComparisonViewer, ComparisonMode } from './viewer/comparisonviewer.js';
 
 export {
@@ -365,6 +365,7 @@ export {
     DiffType,
     DiffColor,
     ModelDiffInfo,
+    MeshDiffInfo,
     ComparisonViewer,
     ComparisonMode
 };

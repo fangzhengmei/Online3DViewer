@@ -71,7 +71,7 @@ import { ThreeColorConverter, ThreeLinearToSRGBColorConverter, ThreeSRGBToLinear
 import { Camera, CameraIsEqual3D, NavigationMode, ProjectionMode } from './viewer/camera.js';
 import { GetIntegerFromStyle, GetDomElementExternalWidth, GetDomElementExternalHeight, GetDomElementInnerDimensions, GetDomElementClientCoordinates, CreateDomElement, AddDomElement, AddDiv, ClearDomElement, InsertDomElementBefore, InsertDomElementAfter, ShowDomElement, IsDomElementVisible, SetDomElementWidth, SetDomElementHeight, GetDomElementOuterWidth, GetDomElementOuterHeight, SetDomElementOuterWidth, SetDomElementOuterHeight, CreateDiv } from './viewer/domutils.js';
 import { EmbeddedViewer, Init3DViewerFromUrlList, Init3DViewerFromFileList, Init3DViewerElements } from './viewer/embeddedviewer.js';
-import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, NavigationType, NavigationState, NavigationEvent } from './viewer/navigation.js';
+import { MouseInteraction, TouchInteraction, ClickDetector, Navigation, NavigationType, NavigationState, NavigationEvent, NavigationStateMachine } from './viewer/navigation.js';
 import { EnvironmentSettings, ShadingModel } from './viewer/shadingmodel.js';
 import { CameraValidator, UpVector, Viewer, GetDefaultCamera, TraverseThreeObject, GetShadingTypeOfObject } from './viewer/viewer.js';
 import { ViewerModel, EdgeSettings, ViewerMainModel, SetThreeMeshPolygonOffset, IntersectionMode } from './viewer/viewermodel.js';
@@ -348,6 +348,7 @@ export {
     NavigationType,
     NavigationState,
     NavigationEvent,
+    NavigationStateMachine,
     EnvironmentSettings,
     ShadingModel,
     CameraValidator,

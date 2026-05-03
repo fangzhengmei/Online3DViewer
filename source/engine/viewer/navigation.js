@@ -255,7 +255,7 @@ export const NavigationEvent =
 	Wheel : 'Wheel'
 };
 
-class NavigationStateMachine
+export class NavigationStateMachine
 {
 	constructor (navigation)
 	{

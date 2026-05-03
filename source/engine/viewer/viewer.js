@@ -572,7 +572,7 @@ export class Viewer
         };
     }
 
-    GetImageAsDataUrl (width, height, isTransparent)
+    GetImageAsDataUrl (width, height, isTransparent, imageFormat, imageQuality)
     {
         let originalSize = this.GetImageSize ();
         let renderWidth = width;
@@ -587,7 +587,16 @@ export class Viewer
         }
         this.ResizeRenderer (renderWidth, renderHeight);
         this.Render ();
-        let url = this.renderer.domElement.toDataURL ();
+        let url = null;
+        if (imageFormat === 'image/jpeg' || imageFormat === 'image/png') {
+            if (imageQuality !== undefined) {
+                url = this.renderer.domElement.toDataURL (imageFormat, imageQuality);
+            } else {
+                url = this.renderer.domElement.toDataURL (imageFormat);
+            }
+        } else {
+            url = this.renderer.domElement.toDataURL ();
+        }
         this.ResizeRenderer (originalSize.width, originalSize.height);
         this.renderer.setClearAlpha (clearAlpha);
         return url;

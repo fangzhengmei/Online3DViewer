@@ -217,6 +217,38 @@ export class EmbeddedViewer
     }
 
     /**
+     * Returns the current canvas size.
+     * @returns {object} Object with width and height properties.
+     */
+    GetImageSize ()
+    {
+        return this.viewer.GetImageSize ();
+    }
+
+    /**
+     * Returns the current canvas size considering the device pixel ratio.
+     * @returns {object} Object with width and height properties.
+     */
+    GetCanvasSize ()
+    {
+        return this.viewer.GetCanvasSize ();
+    }
+
+    /**
+     * Creates a screenshot from the current view and returns it as a data URL.
+     * @param {number} width The width of the screenshot.
+     * @param {number} height The height of the screenshot.
+     * @param {boolean} isTransparent If true, the background will be transparent.
+     * @param {string} [imageFormat] The image format. Can be 'image/png' or 'image/jpeg'. Default is 'image/png'.
+     * @param {number} [imageQuality] The image quality for JPEG format. A number between 0 and 1. Default is 0.92.
+     * @returns {string} The data URL of the screenshot.
+     */
+    GetImageAsDataUrl (width, height, isTransparent, imageFormat, imageQuality)
+    {
+        return this.viewer.GetImageAsDataUrl (width, height, isTransparent, imageFormat, imageQuality);
+    }
+
+    /**
      * Frees up all the memory that is allocated by the viewer. You should call this function if
      * yo don't need the viewer anymore.
      */

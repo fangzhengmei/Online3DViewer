@@ -118,6 +118,38 @@ describe ('IO Test', function () {
         assert.strictEqual (OV.GetFileExtension ('https://example.com/file.ext'), 'ext');
         assert.strictEqual (OV.GetFileExtension ('https://example.com/file.ext?param1=param2'), 'ext');
     });
+
+    it ('GetFileExtensionFromMimeType', function () {
+        assert.strictEqual (OV.GetFileExtensionFromMimeType ('image/png'), 'png');
+        assert.strictEqual (OV.GetFileExtensionFromMimeType ('image/jpeg'), 'jpeg');
+        assert.strictEqual (OV.GetFileExtensionFromMimeType (null), '');
+        assert.strictEqual (OV.GetFileExtensionFromMimeType (undefined), '');
+        assert.strictEqual (OV.GetFileExtensionFromMimeType ('invalid'), '');
+    });
+
+    it ('Base64DataURIToArrayBuffer - PNG', function () {
+        let pngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        let result = OV.Base64DataURIToArrayBuffer (pngDataUrl);
+        assert.notStrictEqual (result, null);
+        assert.strictEqual (result.mimeType, 'image/png');
+        assert.ok (result.buffer instanceof ArrayBuffer);
+        assert.ok (result.buffer.byteLength > 0);
+    });
+
+    it ('Base64DataURIToArrayBuffer - JPEG', function () {
+        let jpegDataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwDfAP/2Q==';
+        let result = OV.Base64DataURIToArrayBuffer (jpegDataUrl);
+        assert.notStrictEqual (result, null);
+        assert.strictEqual (result.mimeType, 'image/jpeg');
+        assert.ok (result.buffer instanceof ArrayBuffer);
+        assert.ok (result.buffer.byteLength > 0);
+    });
+
+    it ('Base64DataURIToArrayBuffer - Invalid URLs', function () {
+        assert.strictEqual (OV.Base64DataURIToArrayBuffer ('invalid'), null);
+        assert.strictEqual (OV.Base64DataURIToArrayBuffer ('data:no-semicolon'), null);
+        assert.strictEqual (OV.Base64DataURIToArrayBuffer ('data:image/png;no-comma'), null);
+    });
 });
 
 }

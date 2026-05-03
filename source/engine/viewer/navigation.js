@@ -234,6 +234,191 @@ export const NavigationType =
 	Zoom : 3
 };
 
+export const NavigationState =
+{
+	Idle : 0,
+	Orbit : 1,
+	Pan : 2,
+	Zoom : 3,
+	PanZoom : 4
+};
+
+export const NavigationEvent =
+{
+	MouseDown : 'MouseDown',
+	MouseMove : 'MouseMove',
+	MouseUp : 'MouseUp',
+	MouseLeave : 'MouseLeave',
+	TouchStart : 'TouchStart',
+	TouchMove : 'TouchMove',
+	TouchEnd : 'TouchEnd',
+	Wheel : 'Wheel'
+};
+
+class NavigationStateMachine
+{
+	constructor (navigation)
+	{
+		this.navigation = navigation;
+		this.currentState = NavigationState.Idle;
+		this.prevState = NavigationState.Idle;
+	}
+
+	GetCurrentState ()
+	{
+		return this.currentState;
+	}
+
+	GetNavigationTypeFromState (state)
+	{
+		switch (state) {
+			case NavigationState.Orbit:
+				return NavigationType.Orbit;
+			case NavigationState.Pan:
+			case NavigationState.PanZoom:
+				return NavigationType.Pan;
+			case NavigationState.Zoom:
+				return NavigationType.Zoom;
+			default:
+				return NavigationType.None;
+		}
+	}
+
+	Transition (event, eventData = {})
+	{
+		this.prevState = this.currentState;
+
+		switch (this.currentState) {
+			case NavigationState.Idle:
+				this.HandleIdleState (event, eventData);
+				break;
+			case NavigationState.Orbit:
+				this.HandleActiveState (event, eventData, NavigationState.Orbit);
+				break;
+			case NavigationState.Pan:
+				this.HandleActiveState (event, eventData, NavigationState.Pan);
+				break;
+			case NavigationState.Zoom:
+				this.HandleActiveState (event, eventData, NavigationState.Zoom);
+				break;
+			case NavigationState.PanZoom:
+				this.HandleActiveState (event, eventData, NavigationState.PanZoom);
+				break;
+		}
+
+		if (this.prevState !== this.currentState) {
+			this.OnStateExit (this.prevState);
+			this.OnStateEnter (this.currentState);
+		}
+	}
+
+	HandleIdleState (event, eventData)
+	{
+		switch (event) {
+			case NavigationEvent.MouseDown:
+				this.currentState = this.DetermineMouseState (eventData);
+				break;
+			case NavigationEvent.TouchStart:
+				this.currentState = this.DetermineTouchState (eventData);
+				break;
+			case NavigationEvent.Wheel:
+				this.currentState = NavigationState.Zoom;
+				this.ExecuteStateAction (NavigationState.Zoom, eventData);
+				this.currentState = NavigationState.Idle;
+				break;
+			default:
+				break;
+		}
+	}
+
+	HandleActiveState (event, eventData, state)
+	{
+		switch (event) {
+			case NavigationEvent.MouseMove:
+				if (state === NavigationState.Orbit || state === NavigationState.Pan || state === NavigationState.Zoom) {
+					this.ExecuteStateAction (state, eventData);
+				}
+				break;
+			case NavigationEvent.TouchMove:
+				if (state === NavigationState.Orbit || state === NavigationState.PanZoom) {
+					this.ExecuteStateAction (state, eventData);
+				}
+				break;
+			case NavigationEvent.MouseUp:
+			case NavigationEvent.MouseLeave:
+			case NavigationEvent.TouchEnd:
+				this.currentState = NavigationState.Idle;
+				break;
+			default:
+				break;
+		}
+	}
+
+	DetermineMouseState (eventData)
+	{
+		let mouseButton = eventData.mouseButton;
+		let ctrlKey = eventData.ctrlKey;
+		let shiftKey = eventData.shiftKey;
+
+		if (mouseButton === 1) {
+			if (ctrlKey) {
+				return NavigationState.Zoom;
+			} else if (shiftKey) {
+				return NavigationState.Pan;
+			} else {
+				return NavigationState.Orbit;
+			}
+		} else if (mouseButton === 2 || mouseButton === 3) {
+			return NavigationState.Pan;
+		}
+
+		return NavigationState.Idle;
+	}
+
+	DetermineTouchState (eventData)
+	{
+		let fingerCount = eventData.fingerCount;
+
+		if (fingerCount === 1) {
+			return NavigationState.Orbit;
+		} else if (fingerCount === 2) {
+			return NavigationState.PanZoom;
+		}
+
+		return NavigationState.Idle;
+	}
+
+	ExecuteStateAction (state, eventData)
+	{
+		let navigation = this.navigation;
+
+		switch (state) {
+			case NavigationState.Orbit:
+				navigation.ExecuteOrbit (eventData);
+				break;
+			case NavigationState.Pan:
+				navigation.ExecutePan (eventData);
+				break;
+			case NavigationState.Zoom:
+				navigation.ExecuteZoom (eventData);
+				break;
+			case NavigationState.PanZoom:
+				navigation.ExecutePanZoom (eventData);
+				break;
+			default:
+				break;
+		}
+	}
+
+	OnStateEnter (state)
+	{
+	}
+
+	OnStateExit (state)
+	{
+	}
+}
+
 export class Navigation
 {
 	constructor (canvas, camera, callbacks)
@@ -246,6 +431,7 @@ export class Navigation
 		this.mouse = new MouseInteraction ();
 		this.touch = new TouchInteraction ();
 		this.clickDetector = new ClickDetector ();
+		this.stateMachine = new NavigationStateMachine (this);
 
 		this.onMouseClick = null;
 		this.onMouseMove = null;
@@ -265,6 +451,11 @@ export class Navigation
 			document.addEventListener ('mouseup', this.OnMouseUp.bind (this));
 			document.addEventListener ('mouseleave', this.OnMouseLeave.bind (this));
 		}
+	}
+
+	GetNavigationState ()
+	{
+		return this.stateMachine.GetCurrentState ();
 	}
 
 	SetMouseClickHandler (onMouseClick)
@@ -369,6 +560,12 @@ export class Navigation
 
 		this.mouse.Down (this.canvas, ev);
 		this.clickDetector.Start (this.mouse.GetPosition ());
+
+		this.stateMachine.Transition (NavigationEvent.MouseDown, {
+			mouseButton: this.mouse.GetButton (),
+			ctrlKey: ev.ctrlKey,
+			shiftKey: ev.shiftKey
+		});
 	}
 
 	OnMouseMove (ev)
@@ -384,41 +581,20 @@ export class Navigation
 			return;
 		}
 
-		let moveDiff = this.mouse.GetMoveDiff ();
-		let mouseButton = this.mouse.GetButton ();
-
-		let navigationType = NavigationType.None;
-		if (mouseButton === 1) {
-			if (ev.ctrlKey) {
-				navigationType = NavigationType.Zoom;
-			} else if (ev.shiftKey) {
-				navigationType = NavigationType.Pan;
-			} else {
-				navigationType = NavigationType.Orbit;
-			}
-		} else if (mouseButton === 2 || mouseButton === 3) {
-			navigationType = NavigationType.Pan;
-		}
-
-		if (navigationType === NavigationType.Orbit) {
-			let orbitRatio = 0.5;
-			this.Orbit (moveDiff.x * orbitRatio, moveDiff.y * orbitRatio);
-		} else if (navigationType === NavigationType.Pan) {
-			let eyeCenterDistance = CoordDistance3D (this.camera.eye, this.camera.center);
-			let panRatio = 0.001 * eyeCenterDistance;
-			this.Pan (moveDiff.x * panRatio, moveDiff.y * panRatio);
-		} else if (navigationType === NavigationType.Zoom) {
-			let zoomRatio = 0.005;
-			this.Zoom (-moveDiff.y * zoomRatio);
-		}
-
-		this.Update ();
+		this.stateMachine.Transition (NavigationEvent.MouseMove, {
+			moveDiff: this.mouse.GetMoveDiff (),
+			mouseButton: this.mouse.GetButton (),
+			ctrlKey: ev.ctrlKey,
+			shiftKey: ev.shiftKey
+		});
 	}
 
 	OnMouseUp (ev)
 	{
 		this.mouse.Up (this.canvas, ev);
 		this.clickDetector.End ();
+
+		this.stateMachine.Transition (NavigationEvent.MouseUp);
 
 		if (this.clickDetector.IsClick ()) {
 			let mouseCoords = this.mouse.GetPosition ();
@@ -430,6 +606,8 @@ export class Navigation
 	{
 		this.mouse.Leave (this.canvas, ev);
 		this.clickDetector.Cancel ();
+
+		this.stateMachine.Transition (NavigationEvent.MouseLeave);
 	}
 
 	OnTouchStart (ev)
@@ -438,6 +616,10 @@ export class Navigation
 
 		this.touch.Start (this.canvas, ev);
 		this.clickDetector.Start (this.touch.GetPosition ());
+
+		this.stateMachine.Transition (NavigationEvent.TouchStart, {
+			fingerCount: this.touch.GetFingerCount ()
+		});
 	}
 
 	OnTouchMove (ev)
@@ -450,28 +632,11 @@ export class Navigation
 			return;
 		}
 
-		let moveDiff = this.touch.GetMoveDiff ();
-		let distanceDiff = this.touch.GetDistanceDiff ();
-		let fingerCount = this.touch.GetFingerCount ();
-
-		let navigationType = NavigationType.None;
-		if (fingerCount === 1) {
-			navigationType = NavigationType.Orbit;
-		} else if (fingerCount === 2) {
-			navigationType = NavigationType.Pan;
-		}
-
-		if (navigationType === NavigationType.Orbit) {
-			let orbitRatio = 0.5;
-			this.Orbit (moveDiff.x * orbitRatio, moveDiff.y * orbitRatio);
-		} else if (navigationType === NavigationType.Pan) {
-			let zoomRatio = 0.005;
-			this.Zoom (distanceDiff * zoomRatio);
-			let panRatio = 0.001 * CoordDistance3D (this.camera.eye, this.camera.center);
-			this.Pan (moveDiff.x * panRatio, moveDiff.y * panRatio);
-		}
-
-		this.Update ();
+		this.stateMachine.Transition (NavigationEvent.TouchMove, {
+			moveDiff: this.touch.GetMoveDiff (),
+			distanceDiff: this.touch.GetDistanceDiff (),
+			fingerCount: this.touch.GetFingerCount ()
+		});
 	}
 
 	OnTouchEnd (ev)
@@ -480,6 +645,8 @@ export class Navigation
 
 		this.touch.End (this.canvas, ev);
 		this.clickDetector.End ();
+
+		this.stateMachine.Transition (NavigationEvent.TouchEnd);
 
 		if (this.clickDetector.IsClick ()) {
 			let touchCoords = this.touch.GetPosition ();
@@ -500,8 +667,9 @@ export class Navigation
 			ratio = ratio * -1.0;
 		}
 
-		this.Zoom (ratio);
-		this.Update ();
+		this.stateMachine.Transition (NavigationEvent.Wheel, {
+			ratio: ratio
+		});
 	}
 
 	OnContextMenu (ev)
@@ -556,6 +724,48 @@ export class Navigation
 		let distance = direction.Length ();
 		let move = distance * ratio;
 		this.camera.eye.Offset (direction, move);
+	}
+
+	ExecuteOrbit (eventData)
+	{
+		let moveDiff = eventData.moveDiff;
+		let orbitRatio = 0.5;
+		this.Orbit (moveDiff.x * orbitRatio, moveDiff.y * orbitRatio);
+		this.Update ();
+	}
+
+	ExecutePan (eventData)
+	{
+		let moveDiff = eventData.moveDiff;
+		let eyeCenterDistance = CoordDistance3D (this.camera.eye, this.camera.center);
+		let panRatio = 0.001 * eyeCenterDistance;
+		this.Pan (moveDiff.x * panRatio, moveDiff.y * panRatio);
+		this.Update ();
+	}
+
+	ExecuteZoom (eventData)
+	{
+		if (eventData.ratio !== undefined) {
+			this.Zoom (eventData.ratio);
+		} else if (eventData.moveDiff !== undefined) {
+			let zoomRatio = 0.005;
+			this.Zoom (-eventData.moveDiff.y * zoomRatio);
+		}
+		this.Update ();
+	}
+
+	ExecutePanZoom (eventData)
+	{
+		let moveDiff = eventData.moveDiff;
+		let distanceDiff = eventData.distanceDiff;
+
+		let zoomRatio = 0.005;
+		this.Zoom (distanceDiff * zoomRatio);
+
+		let panRatio = 0.001 * CoordDistance3D (this.camera.eye, this.camera.center);
+		this.Pan (moveDiff.x * panRatio, moveDiff.y * panRatio);
+
+		this.Update ();
 	}
 
 	Update ()

@@ -42,7 +42,7 @@ import { ImporterThreeBase, ImporterThreeFbx, ImporterThreeDae, ImporterThreeWrl
 import { ColorToMaterialConverter, NameFromLine, ParametersFromLine, ReadLines, IsPowerOfTwo, NextPowerOfTwo, UpdateMaterialTransparency, CreateOcctWorker, LoadExternalLibrary } from './import/importerutils.js';
 import { BinaryReader } from './io/binaryreader.js';
 import { BinaryWriter } from './io/binarywriter.js';
-import { ArrayBufferToUtf8String, ArrayBufferToAsciiString, AsciiStringToArrayBuffer, Utf8StringToArrayBuffer, Base64DataURIToArrayBuffer, GetFileExtensionFromMimeType, CreateObjectUrl, CreateObjectUrlWithMimeType, RevokeObjectUrl } from './io/bufferutils.js';
+import { ArrayBufferToUtf8String, ArrayBufferToAsciiString, AsciiStringToArrayBuffer, Utf8StringToArrayBuffer, Base64DataURIToArrayBuffer, GetFileExtensionFromMimeType, GetMimeTypeFromExtension, IsImageMimeType, CreateObjectUrl, CreateObjectUrlWithMimeType, RevokeObjectUrl } from './io/bufferutils.js';
 import { LoadExternalLibraryFromUrl } from './io/externallibs.js';
 import { GetFileName, GetFileExtension, RequestUrl, ReadFile, TransformFileHostUrls, IsUrl, FileSource, FileFormat } from './io/fileutils.js';
 import { TextWriter } from './io/textwriter.js';
@@ -203,6 +203,8 @@ export {
     Utf8StringToArrayBuffer,
     Base64DataURIToArrayBuffer,
     GetFileExtensionFromMimeType,
+    GetMimeTypeFromExtension,
+    IsImageMimeType,
     CreateObjectUrl,
     CreateObjectUrlWithMimeType,
     RevokeObjectUrl,

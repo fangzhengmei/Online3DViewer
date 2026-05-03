@@ -249,6 +249,115 @@ export class EmbeddedViewer
     }
 
     /**
+     * Creates a screenshot from the current view and returns it as an ArrayBuffer.
+     * @param {number} width The width of the screenshot.
+     * @param {number} height The height of the screenshot.
+     * @param {boolean} isTransparent If true, the background will be transparent.
+     * @param {string} [imageFormat] The image format. Can be 'image/png' or 'image/jpeg'. Default is 'image/png'.
+     * @param {number} [imageQuality] The image quality for JPEG format. A number between 0 and 1. Default is 0.92.
+     * @returns {object} An object containing { buffer, mimeType, extension }.
+     */
+    GetImageAsArrayBuffer (width, height, isTransparent, imageFormat, imageQuality)
+    {
+        return this.viewer.GetImageAsArrayBuffer (width, height, isTransparent, imageFormat, imageQuality);
+    }
+
+    /**
+     * Creates a screenshot from the current view using the current canvas size.
+     * This is a convenience method for quick screenshots.
+     * @param {string} [imageFormat] The image format. Can be 'image/png' or 'image/jpeg'. Default is 'image/png'.
+     * @param {number} [imageQuality] The image quality for JPEG format. A number between 0 and 1. Default is 0.92.
+     * @returns {object} An object containing { buffer, mimeType, extension, width, height }.
+     */
+    GetCurrentViewAsImage (imageFormat, imageQuality)
+    {
+        let canvasSize = this.GetCanvasSize ();
+        let result = this.GetImageAsArrayBuffer (
+            canvasSize.width,
+            canvasSize.height,
+            false,
+            imageFormat,
+            imageQuality
+        );
+        return {
+            buffer : result.buffer,
+            mimeType : result.mimeType,
+            extension : result.extension,
+            width : canvasSize.width,
+            height : canvasSize.height
+        };
+    }
+
+    /**
+     * Exports the current view as an image file and triggers a download in the browser.
+     * This is a one-click export method for end users.
+     * @param {string} [fileName='model'] The base name of the file (without extension).
+     * @param {string} [imageFormat='image/png'] The image format. Can be 'image/png' or 'image/jpeg'.
+     * @param {number} [imageQuality=0.92] The image quality for JPEG format. A number between 0 and 1.
+     * @param {object} [options] Additional options.
+     * @param {number} [options.width] Custom width for the screenshot. Uses current size if not specified.
+     * @param {number} [options.height] Custom height for the screenshot. Uses current size if not specified.
+     * @param {boolean} [options.transparent=false] Whether to use transparent background (PNG only).
+     * @returns {boolean} Returns true if the export was initiated, false otherwise.
+     */
+    ExportImageAsFile (fileName, imageFormat, imageQuality, options)
+    {
+        if (typeof document === 'undefined' || typeof URL === 'undefined') {
+            return false;
+        }
+        let actualFileName = fileName && typeof fileName === 'string' ? fileName : 'model';
+        let actualFormat = imageFormat && typeof imageFormat === 'string' ? imageFormat : 'image/png';
+        let actualQuality = imageQuality !== undefined && imageQuality !== null ? imageQuality : 0.92;
+        let actualWidth = null;
+        let actualHeight = null;
+        let isTransparent = false;
+        if (options && typeof options === 'object') {
+            if (options.width !== undefined && options.width !== null) {
+                actualWidth = options.width;
+            }
+            if (options.height !== undefined && options.height !== null) {
+                actualHeight = options.height;
+            }
+            if (options.transparent !== undefined && options.transparent !== null) {
+                isTransparent = options.transparent;
+            }
+        }
+        if (actualWidth === null || actualHeight === null) {
+            let canvasSize = this.GetCanvasSize ();
+            if (actualWidth === null) {
+                actualWidth = canvasSize.width;
+            }
+            if (actualHeight === null) {
+                actualHeight = canvasSize.height;
+            }
+        }
+        let imageResult = this.GetImageAsArrayBuffer (
+            actualWidth,
+            actualHeight,
+            isTransparent,
+            actualFormat,
+            actualQuality
+        );
+        if (imageResult.buffer === null) {
+            return false;
+        }
+        let fullFileName = actualFileName + '.' + imageResult.extension;
+        let blob = new Blob ([imageResult.buffer], { type : imageResult.mimeType });
+        let url = URL.createObjectURL (blob);
+        try {
+            let link = document.createElement ('a');
+            link.href = url;
+            link.download = fullFileName;
+            document.body.appendChild (link);
+            link.click ();
+            document.body.removeChild (link);
+        } finally {
+            URL.revokeObjectURL (url);
+        }
+        return true;
+    }
+
+    /**
      * Frees up all the memory that is allocated by the viewer. You should call this function if
      * yo don't need the viewer anymore.
      */

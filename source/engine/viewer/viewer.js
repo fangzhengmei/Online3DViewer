@@ -602,6 +602,49 @@ export class Viewer
         return url;
     }
 
+    GetImageAsArrayBuffer (width, height, isTransparent, imageFormat, imageQuality)
+    {
+        let dataUrl = this.GetImageAsDataUrl (width, height, isTransparent, imageFormat, imageQuality);
+        let result = {
+            buffer : null,
+            mimeType : 'image/png',
+            extension : 'png'
+        };
+        if (dataUrl === null || dataUrl === undefined) {
+            return result;
+        }
+        let prefix = 'data:';
+        if (!dataUrl.startsWith (prefix)) {
+            return result;
+        }
+        let mimeEnd = dataUrl.indexOf (';');
+        if (mimeEnd > prefix.length) {
+            result.mimeType = dataUrl.substring (prefix.length, mimeEnd);
+        }
+        if (imageFormat === 'image/jpeg') {
+            result.extension = 'jpg';
+        } else if (imageFormat === 'image/png' || imageFormat === undefined || imageFormat === null) {
+            result.extension = 'png';
+        } else {
+            let mimeParts = result.mimeType.split ('/');
+            if (mimeParts.length >= 2) {
+                result.extension = mimeParts[1];
+            }
+        }
+        let bufferSeparator = dataUrl.indexOf (',');
+        if (bufferSeparator === -1) {
+            return result;
+        }
+        let base64String = atob (dataUrl.substring (bufferSeparator + 1));
+        let buffer = new ArrayBuffer (base64String.length);
+        let bufferView = new Uint8Array (buffer);
+        for (let i = 0; i < base64String.length; i++) {
+            bufferView[i] = base64String.charCodeAt (i);
+        }
+        result.buffer = buffer;
+        return result;
+    }
+
     Destroy ()
     {
         this.Clear ();

@@ -1,7 +1,6 @@
 import * as assert from 'assert';
 import * as THREE from 'three';
 import { Annotation, AnnotationTool } from '../../source/website/annotationtool.js';
-import { IntersectionMode } from '../../source/engine/viewer/viewermodel.js';
 
 function CreateMockViewer ()
 {

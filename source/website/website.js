@@ -23,6 +23,7 @@ import { GetDefaultMaterials, ReplaceDefaultMaterialsColor } from '../engine/mod
 import { Direction } from '../engine/geometry/geometry.js';
 import { CookieGetBoolVal, CookieSetBoolVal } from './cookiehandler.js';
 import { MeasureTool } from './measuretool.js';
+import { AnnotationTool } from './annotationtool.js';
 import { CloseAllDialogs } from './dialog.js';
 import { CreateVerticalSplitter } from './splitter.js';
 import { EnumeratePlugins, PluginType } from './pluginregistry.js';
@@ -40,13 +41,14 @@ const WebsiteUIState =
 
 class WebsiteLayouter
 {
-    constructor (parameters, navigator, sidebar, viewer, measureTool)
+    constructor (parameters, navigator, sidebar, viewer, measureTool, annotationTool)
     {
         this.parameters = parameters;
         this.navigator = navigator;
         this.sidebar = sidebar;
         this.viewer = viewer;
         this.measureTool = measureTool;
+        this.annotationTool = annotationTool;
         this.limits = {
             minPanelWidth : 290,
             minCanvasWidth : 100
@@ -188,6 +190,7 @@ export class Website
         this.cameraSettings = new CameraSettings ();
         this.viewer = new Viewer ();
         this.measureTool = new MeasureTool (this.viewer, this.settings);
+        this.annotationTool = new AnnotationTool (this.viewer, this.settings);
         this.hashHandler = new HashHandler ();
         this.toolbar = new Toolbar (this.parameters.toolbarDiv);
         this.navigator = new Navigator (this.parameters.navigatorDiv);
@@ -196,7 +199,7 @@ export class Website
         this.themeHandler = new ThemeHandler ();
         this.highlightColor = new RGBColor (142, 201, 240);
         this.uiState = WebsiteUIState.Undefined;
-        this.layouter = new WebsiteLayouter (this.parameters, this.navigator, this.sidebar, this.viewer, this.measureTool);
+        this.layouter = new WebsiteLayouter (this.parameters, this.navigator, this.sidebar, this.viewer, this.measureTool, this.annotationTool);
         this.model = null;
     }
 
@@ -290,6 +293,8 @@ export class Website
         this.sidebar.Clear ();
 
         this.measureTool.SetActive (false);
+        this.annotationTool.SetActive (false);
+        this.annotationTool.ClearAll ();
     }
 
     OnModelLoaded (importResult, threeObject)
@@ -314,6 +319,11 @@ export class Website
             return;
         }
 
+        if (this.annotationTool.IsActive ()) {
+            this.annotationTool.Click (mouseCoordinates);
+            return;
+        }
+
         let meshUserData = this.viewer.GetMeshUserDataUnderMouse (IntersectionMode.MeshAndLine, mouseCoordinates);
         if (meshUserData === null) {
             this.navigator.SetSelection (null);
@@ -326,6 +336,10 @@ export class Website
     {
         if (this.measureTool.IsActive ()) {
             this.measureTool.MouseMove (mouseCoordinates);
+        }
+
+        if (this.annotationTool.IsActive ()) {
+            this.annotationTool.MouseMove (mouseCoordinates);
         }
     }
 
@@ -706,8 +720,23 @@ export class Website
             HandleEvent ('measure_tool_activated', isSelected ? 'on' : 'off');
             this.navigator.SetSelection (null);
             this.measureTool.SetActive (isSelected);
+            if (isSelected) {
+                this.annotationTool.SetActive (false);
+            }
         });
         this.measureTool.SetButton (measureToolButton);
+
+        let annotationToolButton = AddPushButton (this.toolbar, 'details', Loc ('Annotation'), ['only_full_width', 'only_on_model'], (isSelected) => {
+            HandleEvent ('annotation_tool_activated', isSelected ? 'on' : 'off');
+            this.navigator.SetSelection (null);
+            this.annotationTool.SetActive (isSelected);
+            if (isSelected) {
+                this.measureTool.SetActive (false);
+                this.sidebar.ShowAnnotationsPanel ();
+            }
+        });
+        this.annotationTool.SetButton (annotationToolButton);
+
         AddSeparator (this.toolbar, ['only_full_width', 'only_on_model']);
         AddButton (this.toolbar, 'download', Loc ('Download'), ['only_full_width', 'only_on_model'], () => {
             HandleEvent ('model_downloaded', '');
@@ -788,6 +817,24 @@ export class Website
 
     InitSidebar ()
     {
+        this.annotationTool.Init ({
+            onUpdatePanel : (annotations) => {
+                this.sidebar.SetAnnotations (annotations);
+            },
+            onAnnotationAdded : (annotation) => {
+                HandleEvent ('annotation_added', annotation.id);
+            },
+            onAnnotationRemoved : (annotation) => {
+                HandleEvent ('annotation_removed', annotation.id);
+            },
+            onAnnotationUpdated : (annotation) => {
+                HandleEvent ('annotation_updated', annotation.id);
+            },
+            onResize : () => {
+                this.layouter.Resize ();
+            }
+        });
+
         this.sidebar.Init ({
             getShadingType : () => {
                 return this.viewer.GetShadingType ();
@@ -831,6 +878,21 @@ export class Website
             onShowHidePanels : (show) => {
                 ShowDomElement (this.parameters.sidebarSplitterDiv, show);
                 CookieSetBoolVal ('ov_show_sidebar', show);
+            },
+            onClearAllAnnotations : () => {
+                this.annotationTool.ClearAll ();
+            },
+            onRemoveAnnotation : (id) => {
+                this.annotationTool.RemoveAnnotation (id);
+            },
+            onUpdateAnnotationNote : (id, note) => {
+                this.annotationTool.UpdateAnnotationNote (id, note);
+            },
+            onUpdateAnnotationLabel : (id, label) => {
+                this.annotationTool.UpdateAnnotationLabel (id, label);
+            },
+            onFitAnnotation : (id) => {
+                this.annotationTool.FitAnnotationToWindow (id);
             }
         });
     }

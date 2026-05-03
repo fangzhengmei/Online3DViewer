@@ -2,6 +2,7 @@ import { GetDomElementOuterWidth, SetDomElementOuterHeight, SetDomElementOuterWi
 import { PanelSet } from './panelset.js';
 import { SidebarDetailsPanel } from './sidebardetailspanel.js';
 import { SidebarSettingsPanel } from './sidebarsettingspanel.js';
+import { SidebarAnnotationsPanel } from './sidebarannotationspanel.js';
 
 export class Sidebar
 {
@@ -11,9 +12,11 @@ export class Sidebar
         this.panelSet = new PanelSet (mainDiv);
 
         this.detailsPanel = new SidebarDetailsPanel (this.panelSet.GetContentDiv ());
+        this.annotationsPanel = new SidebarAnnotationsPanel (this.panelSet.GetContentDiv ());
         this.settingsPanel = new SidebarSettingsPanel (this.panelSet.GetContentDiv (), settings);
 
         this.panelSet.AddPanel (this.detailsPanel);
+        this.panelSet.AddPanel (this.annotationsPanel);
         this.panelSet.AddPanel (this.settingsPanel);
         this.panelSet.ShowPanel (this.detailsPanel);
     }
@@ -38,6 +41,24 @@ export class Sidebar
             },
             onShowHidePanels : (show) => {
                 this.callbacks.onShowHidePanels (show);
+            }
+        });
+
+        this.annotationsPanel.Init ({
+            onClearAllAnnotations : () => {
+                this.callbacks.onClearAllAnnotations ();
+            },
+            onRemoveAnnotation : (id) => {
+                this.callbacks.onRemoveAnnotation (id);
+            },
+            onUpdateAnnotationNote : (id, note) => {
+                this.callbacks.onUpdateAnnotationNote (id, note);
+            },
+            onUpdateAnnotationLabel : (id, label) => {
+                this.callbacks.onUpdateAnnotationLabel (id, label);
+            },
+            onFitAnnotation : (id) => {
+                this.callbacks.onFitAnnotation (id);
             }
         });
 
@@ -105,5 +126,17 @@ export class Sidebar
     AddMaterialProperties (material)
     {
         this.detailsPanel.AddMaterialProperties (material);
+    }
+
+    SetAnnotations (annotations)
+    {
+        this.annotationsPanel.SetAnnotations (annotations);
+    }
+
+    ShowAnnotationsPanel ()
+    {
+        this.panelSet.ShowPanels (true);
+        this.panelSet.ShowPanel (this.annotationsPanel);
+        this.callbacks.onResizeRequested ();
     }
 }

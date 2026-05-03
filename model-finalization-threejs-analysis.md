@@ -3,7 +3,7 @@
 ## 目录
 1. [整体数据流转概述](#整体数据流转概述)
 2. [Finalization 阶段：拓扑与材质计算](#finalization-阶段拓扑与材质计算)
-3. [Three.js 转换器：几何与材质缓存](#threejs-转换器几何与材质缓存)
+3. [Three.js 转换器：几何与材质缓存的边界](#threejs-转换器几何与材质缓存的边界)
 4. [Viewer 层：生命周期管理与选中状态同步](#viewer-层生命周期管理与选中状态同步)
 5. [独立内部模型层：设计原则与实际好处](#独立内部模型层设计原则与实际好处)
 
@@ -332,64 +332,295 @@ FinalizeNodes (model)
 
 ---
 
-## Three.js 转换器：几何与材质缓存
+## Three.js 转换器：几何与材质缓存的边界
 
 ### 整体转换架构
 
 转换入口是 `ConvertModelToThreeObject` 函数，位于 `source/engine/threejs/threeconverter.js:327`。
 
+### 1. 核心概念：MeshInstanceId 与实例展开
+
+在理解几何和材质缓存之前，必须先理解 OV 的**实例化机制**。
+
+#### 1.1 MeshInstanceId：实例的唯一标识
+
+```javascript
+export class MeshInstanceId
+{
+    constructor (nodeId, meshIndex)
+    {
+        this.nodeId = nodeId;      // 场景图节点 ID（整数）
+        this.meshIndex = meshIndex; // 该节点引用的 mesh 索引（整数）
+    }
+    
+    IsEqual (rhs)
+    {
+        return this.nodeId === rhs.nodeId && this.meshIndex === rhs.meshIndex;
+    }
+    
+    GetKey ()
+    {
+        return this.nodeId.toString () + ':' + this.meshIndex.toString ();
+    }
+}
+```
+**位置：** `meshinstance.js:4-21`
+
+**设计意图：**
+- 同一个 `Mesh`（几何数据）可以被多个 `Node` 引用
+- `MeshInstanceId = (nodeId, meshIndex)` 唯一标识一个**具体的使用位置**
+- 这是 OV 实现"实例化"的方式：数据共享，引用独立
+
+#### 1.2 内部模型层的数据复用关系
+
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      转换过程数据流                                      │
+│                    内部模型层的数据复用关系                               │
 ├────────────────────────────────────────────────────────────────────────┤
 │                                                                        │
-│   ┌──────────────┐                                                     │
-│   │ Model (OV)   │                                                     │
-│   └──────┬───────┘                                                     │
-│          │                                                             │
-│          ▼                                                             │
-│   ┌──────────────────────────────────────────────────────────────┐  │
-│   │              ConvertModelToThreeObject                        │  │
-│   │                                                                │  │
-│   │  ┌─────────────────┐    ┌─────────────────────────────────┐ │  │
-│   │  │ThreeNodeTree    │    │  ThreeMaterialHandler            │ │  │
-│   │  │(节点树+变换)     │    │  - 材质缓存 Map                  │ │  │
-│   │  │                 │    │  - 纹理异步加载                   │ │  │
-│   │  │ 遍历所有 Mesh    │    │  - 输出默认材质列表               │ │  │
-│   │  │ 实例构建 Three   │    │                                 │ │  │
-│   │  └────────┬────────┘    └───────────────┬─────────────────┘ │  │
-│   │           │                              │                     │  │
-│   │           ▼                              ▼                     │  │
-│   │  ┌─────────────────────────────────────────────────────────┐ │  │
-│   │  │           ConvertMesh (逐个 MeshInstance)                │ │  │
-│   │  │                                                           │ │  │
-│   │  │  ┌──────────────────┐    ┌─────────────────────┐       │ │  │
-│   │  │  │ CreateThree-     │    │ CreateThree-        │       │ │  │
-│   │  │  │ TriangleMesh     │    │ LineMesh            │       │ │  │
-│   │  │  │                  │    │                     │       │ │  │
-│   │  │  │ 1. 按材质排序    │    │ 1. 按材质排序       │       │ │  │
-│   │  │  │ 2. 展开顶点数据  │    │ 2. 展开顶点数据     │       │ │  │
-│   │  │  │ 3. ThreeMesh-   │    │ 3. ThreeMesh-      │       │ │  │
-│   │  │  │    MaterialHandler │    │   MaterialHandler  │       │ │  │
-│   │  │  │    分组渲染      │    │    分组渲染         │       │ │  │
-│   │  │  └────────┬─────────┘    └──────────┬──────────┘       │ │  │
-│   │  └───────────┼──────────────────────────┼───────────────────┘ │  │
-│   └──────────────┼──────────────────────────┼──────────────────────┘  │
-│                  ▼                          ▼                         │
-│         ┌────────────────────────────────────────────────────┐       │
-│         │            THREE.Object3D (场景树)                  │       │
-│         │  - 保持层级结构                                      │       │
-│         │  - 每个 Mesh 含 userData 回指内部模型               │       │
-│         └────────────────────────────────────────────────────┘       │
+│   Model                                                                │
+│   ├── materials[]  ──────────────────────────────────────┐            │
+│   │                                                        │            │
+│   ├── meshes[]                                            │            │
+│   │   ├── Mesh[0] (顶点+法线+三角形数据)                   │            │
+│   │   ├── Mesh[1]                                         │            │
+│   │   └── Mesh[2]                                         │            │
+│   │                                                        │            │
+│   └── rootNode                                            │            │
+│       ├── Node[id=0]                                      │            │
+│       │   ├── transformation: Matrix_A                   │            │
+│       │   └── meshIndices: [0, 2]  ─────┐               │            │
+│       │                                   │               │            │
+│       └── Node[id=1]                     │               │            │
+│           ├── transformation: Matrix_B   │               │            │
+│           └── meshIndices: [0, 1]  ─────┤               │            │
+│                                           │               │            │
+│   结果：                                  │               │            │
+│   ├── MeshInstanceId(0, 0) ─────────────┤───▶ 引用 Mesh[0]，变换 A │
+│   ├── MeshInstanceId(0, 2) ─────────────┤───▶ 引用 Mesh[2]，变换 A │
+│   ├── MeshInstanceId(1, 0) ─────────────┤───▶ 引用 Mesh[0]，变换 B │
+│   └── MeshInstanceId(1, 1) ─────────────┘───▶ 引用 Mesh[1]，变换 B │
+│                                                                        │
+│   注意：Mesh[0] 被两个不同节点引用，但 MeshInstanceId 不同！          │
 │                                                                        │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 1. 材质缓存机制
+#### 1.3 ThreeNodeTree：将引用展开为独立条目
 
-#### 1.1 核心缓存结构
+转换的第一步是通过 `ThreeNodeTree` 遍历节点树，将所有 `(nodeId, meshIndex)` 引用展开为**独立的转换条目**：
 
-`ThreeMaterialHandler` 使用 **JavaScript Map** 实现 OV 材质索引到 Three.js 材质对象的缓存：
+```javascript
+export class ThreeNodeTree
+{
+    constructor (model, threeRootNode)
+    {
+        this.model = model;
+        this.threeNodeItems = [];  // 最终的转换任务列表
+        this.AddNode (model.GetRootNode (), threeRootNode);
+    }
+    
+    AddNode (node, threeNode)
+    {
+        // 步骤 1: 应用节点变换到 THREE.Object3D
+        let matrix = node.GetTransformation ().GetMatrix ();
+        let threeMatrix = new THREE.Matrix4 ().fromArray (matrix.Get ());
+        threeNode.applyMatrix4 (threeMatrix);
+        
+        // 步骤 2: 递归处理子节点
+        for (let childNode of node.GetChildNodes ()) {
+            let threeChildNode = new THREE.Object3D ();
+            threeNode.add (threeChildNode);
+            this.AddNode (childNode, threeChildNode);
+        }
+        
+        // 步骤 3: 关键！为该节点引用的每个 meshIndex 创建独立条目
+        for (let meshIndex of node.GetMeshIndices ()) {
+            // 每个 (nodeId, meshIndex) 组合生成唯一的 MeshInstanceId
+            let id = new MeshInstanceId (node.GetId (), meshIndex);
+            let mesh = this.model.GetMesh (meshIndex);
+            
+            // 注意：不同的 node 可能引用同一个 meshIndex
+            // 但它们的 MeshInstanceId 不同，threeNode 也不同
+            this.threeNodeItems.push ({
+                meshInstance : new MeshInstance (id, node, mesh),
+                threeNode : threeNode
+            });
+        }
+    }
+    
+    GetNodeItems ()
+    {
+        return this.threeNodeItems;
+    }
+}
+```
+**位置：** `threeconverter.js:70-104`
+
+**关键点：**
+- `threeNodeItems` 的长度 = 模型中所有 `MeshInstance` 的数量
+- 如果同一个 `Mesh` 被 100 个 `Node` 引用，这里会产生 100 个独立条目
+- 每个条目有独立的 `meshInstance`（包含独立的 `id`）和独立的 `threeNode`
+
+### 2. 几何数据处理：按实例展开，不复用
+
+#### 2.1 转换流程：逐个 MeshInstance 独立处理
+
+```javascript
+function ConvertNodeHierarchy (threeRootNode, model, materialHandler, stateHandler)
+{
+    let nodeTree = new ThreeNodeTree (model, threeRootNode);
+    let threeNodeItems = nodeTree.GetNodeItems ();  // 所有待转换的实例
+    
+    // 分批处理，避免 UI 阻塞
+    RunTasksBatch (threeNodeItems.length, 100, {
+        runTask : (firstMeshInstanceIndex, lastMeshInstanceIndex, onReady) => {
+            for (let meshInstanceIndex = firstMeshInstanceIndex; 
+                 meshInstanceIndex <= lastMeshInstanceIndex; 
+                 meshInstanceIndex++) {
+                let nodeItem = threeNodeItems[meshInstanceIndex];
+                
+                // 关键：每个 meshInstance 独立调用 ConvertMesh
+                ConvertMesh (nodeItem.threeNode, nodeItem.meshInstance, materialHandler);
+            }
+            onReady ();
+        },
+        onReady : () => {
+            stateHandler.OnModelLoaded (threeRootNode);
+        }
+    });
+}
+```
+**位置：** `threeconverter.js:489-506`
+
+#### 2.2 ConvertMesh：为每个实例创建独立的 THREE.Mesh
+
+```javascript
+function ConvertMesh (threeObject, meshInstance, materialHandler)
+{
+    if (IsEmptyMesh (meshInstance.mesh)) {
+        return;
+    }
+    
+    // 为面几何创建独立的 THREE.Mesh
+    let triangleMesh = CreateThreeTriangleMesh (meshInstance, materialHandler);
+    if (triangleMesh !== null) {
+        threeObject.add (triangleMesh);
+    }
+    
+    // 为线几何创建独立的 THREE.LineSegments
+    let lineMesh = CreateThreeLineMesh (meshInstance, materialHandler);
+    if (lineMesh !== null) {
+        threeObject.add (lineMesh);
+    }
+}
+```
+**位置：** `threeconverter.js:472-487`
+
+#### 2.3 CreateThreeTriangleMesh：每次都新建 BufferGeometry
+
+**这是几何不复用的核心证据：**
+
+```javascript
+function CreateThreeTriangleMesh (meshInstance, materialHandler)
+{
+    let mesh = meshInstance.mesh;
+    let triangleCount = mesh.TriangleCount ();
+    if (triangleCount === 0) {
+        return null;
+    }
+    
+    // 步骤 1: 按材质索引排序三角形（为了分组）
+    let triangleIndices = [];
+    for (let i = 0; i < triangleCount; i++) {
+        triangleIndices.push (i);
+    }
+    triangleIndices.sort ((a, b) => {
+        let aTriangle = mesh.GetTriangle (a);
+        let bTriangle = mesh.GetTriangle (b);
+        return aTriangle.mat - bTriangle.mat;
+    });
+    
+    // 步骤 2: 关键！每次都新建 THREE.BufferGeometry
+    // 没有任何 "meshIndex -> BufferGeometry" 的缓存 Map
+    let threeGeometry = new THREE.BufferGeometry ();
+    let meshMaterialHandler = new ThreeMeshMaterialHandler (
+        threeGeometry, 
+        MaterialGeometryType.Face, 
+        materialHandler
+    );
+    
+    // 步骤 3: 展开顶点数据到数组（重复访问 mesh 的原始数据）
+    let vertices = [];
+    let vertexColors = [];
+    let normals = [];
+    let uvs = [];
+    
+    let meshHasVertexColors = (mesh.VertexColorCount () > 0);
+    let meshHasUVs = (mesh.TextureUVCount () > 0);
+    let processedTriangleCount = 0;
+    
+    for (let triangleIndex of triangleIndices) {
+        let triangle = mesh.GetTriangle (triangleIndex);
+        
+        // 从原始 mesh 读取顶点，推入本地数组
+        let v0 = mesh.GetVertex (triangle.v0);
+        let v1 = mesh.GetVertex (triangle.v1);
+        let v2 = mesh.GetVertex (triangle.v2);
+        vertices.push (v0.x, v0.y, v0.z, v1.x, v1.y, v1.z, v2.x, v2.y, v2.z);
+        
+        // ... 同样处理顶点颜色、法线、UV
+        if (triangle.HasVertexColors ()) { /* ... */ }
+        let n0 = mesh.GetNormal (triangle.n0); // 从 mesh 读取
+        normals.push (n0.x, n0.y, n0.z, ...);
+        if (triangle.HasTextureUVs ()) { /* ... */ }
+        
+        // 为分组做准备
+        meshMaterialHandler.ProcessItem (processedTriangleCount, triangle.mat);
+        processedTriangleCount += 1;
+    }
+    meshMaterialHandler.Finalize (processedTriangleCount);
+    
+    // 步骤 4: 设置 BufferGeometry 的 attributes
+    threeGeometry.setAttribute ('position', new THREE.Float32BufferAttribute (vertices, 3));
+    if (vertexColors.length !== 0) {
+        threeGeometry.setAttribute ('color', new THREE.Float32BufferAttribute (vertexColors, 3));
+    }
+    threeGeometry.setAttribute ('normal', new THREE.Float32BufferAttribute (normals, 3));
+    if (uvs.length !== 0) {
+        threeGeometry.setAttribute ('uv', new THREE.Float32BufferAttribute (uvs, 2));
+    }
+    
+    // 步骤 5: 创建 THREE.Mesh
+    let threeMesh = new THREE.Mesh (threeGeometry, meshMaterialHandler.meshThreeMaterials);
+    threeMesh.name = mesh.GetName ();
+    
+    // 步骤 6: 设置 userData（关键：每个 MeshInstance 独立）
+    threeMesh.userData = {
+        originalMeshInstance : meshInstance,      // 指向独立的 MeshInstance
+        originalMaterials : meshMaterialHandler.meshOriginalMaterials,
+        threeMaterials : null
+    };
+    
+    return threeMesh;
+}
+```
+**位置：** `threeconverter.js:329-420`
+
+#### 2.4 几何不复用的关键特征总结
+
+| 特征 | 证据 |
+|------|------|
+| 无全局缓存 | 没有 `meshIndex -> BufferGeometry` 的 Map 结构 |
+| 每次新建 | `let threeGeometry = new THREE.BufferGeometry()` 在循环内 |
+| 数据重复展开 | `vertices/normals/uvs` 数组在每个 `CreateThreeTriangleMesh` 中重新构建 |
+| userData 独立 | `originalMeshInstance` 指向不同的 MeshInstance 对象 |
+
+### 3. 材质缓存机制：全局共享，跨实例复用
+
+#### 3.1 核心缓存结构
+
+与几何处理形成鲜明对比的是材质处理：
 
 ```javascript
 export class ThreeMaterialHandler
@@ -397,19 +628,22 @@ export class ThreeMaterialHandler
     constructor (model, stateHandler, conversionParams, conversionOutput)
     {
         this.model = model;
-        // ...
+        this.stateHandler = stateHandler;
+        this.conversionParams = conversionParams;
+        this.conversionOutput = conversionOutput;
         
-        // 两套独立缓存：面材质 vs 线材质
-        this.modelToThreeLineMaterial = new Map ();  // key: number (index)
-        this.modelToThreeMaterial = new Map ();       // key: number (index)
+        this.shadingType = GetShadingType (model);
+        
+        // 关键：全局 Map 缓存，key 是 OV 内部材质索引（数字）
+        this.modelToThreeLineMaterial = new Map ();
+        this.modelToThreeMaterial = new Map ();
     }
     
     GetThreeMaterial (modelMaterialIndex, geometryType)
     {
         if (geometryType === MaterialGeometryType.Face) {
-            // 命中缓存则直接返回
+            // 命中缓存则直接返回同一个 THREE.Material 对象
             if (!this.modelToThreeMaterial.has (modelMaterialIndex)) {
-                // 未命中：创建并放入缓存
                 let threeMaterial = this.CreateThreeFaceMaterial (modelMaterialIndex);
                 this.modelToThreeMaterial.set (modelMaterialIndex, threeMaterial);
             }
@@ -428,60 +662,412 @@ export class ThreeMaterialHandler
 ```
 **位置：** `threeconverter.js:106-137`
 
-**缓存设计要点：**
+#### 3.2 材质缓存与几何处理的协作：ThreeMeshMaterialHandler
 
-| 特性 | 说明 |
-|------|------|
-| 作用域 | 单次转换会话内有效（与 ThreeMaterialHandler 同生命周期） |
-| 键类型 | OV 内部材质索引（number），简洁高效 |
-| 分离缓存 | 面和线使用不同 Map，因为材质类型完全不同 |
-| 懒加载 | `GetThreeMaterial` 时才实际创建，按需分配 |
-
-#### 1.2 材质创建策略
-
-根据模型材质类型选择 Three.js 材质类型：
+虽然几何不复用，但**材质对象是共享的**。这种协作发生在 `ThreeMeshMaterialHandler` 层面：
 
 ```javascript
-CreateThreeFaceMaterial (materialIndex)
+export class ThreeMeshMaterialHandler
 {
-    let material = this.model.GetMaterial (materialIndex);
-    let baseColor = ConvertColorToThreeColor (material.color);
-    
-    let materialParams = {
-        color : baseColor,
-        vertexColors : material.vertexColors,  // 来自 Finalization 的标记
-        opacity : material.opacity,
-        transparent : material.transparent,
-        alphaTest : material.alphaTest,
-        side : THREE.DoubleSide
-    };
-    
-    // 整体材质类型由模型首个带类型的材质决定
-    if (this.shadingType === ShadingType.Phong) {
-        threeMaterial = new THREE.MeshPhongMaterial (materialParams);
-        // ... 设置 specular, shininess, specularMap
-    } else if (this.shadingType === ShadingType.Physical) {
-        threeMaterial = new THREE.MeshStandardMaterial (materialParams);
-        // ... 设置 metalness, roughness, metalnessMap
+    constructor (threeGeometry, geometryType, materialHandler)
+    {
+        this.threeGeometry = threeGeometry;
+        this.geometryType = geometryType;
+        this.materialHandler = materialHandler;  // 全局材质缓存的访问点
+        
+        this.itemVertexCount = (geometryType === MaterialGeometryType.Face) ? 3 : 2;
+        
+        // 每个 MeshInstance 独立的材质数组
+        // 但数组中的元素是从全局缓存获取的共享对象
+        this.meshThreeMaterials = [];
+        this.meshOriginalMaterials = [];
+        
+        this.groupStart = null;
+        this.previousMaterialIndex = null;
     }
     
-    // 纹理异步加载（见下节）
-    this.LoadFaceTexture (threeMaterial, material.diffuseMap, ...);
-    this.LoadFaceTexture (threeMaterial, material.bumpMap, ...);
-    // ...
-    
-    // 默认材质追踪（供后续替换颜色）
-    if (material.source !== MaterialSource.Model) {
-        threeMaterial.userData.source = material.source;
-        this.conversionOutput.defaultMaterials.push (threeMaterial);
+    ProcessItem (itemIndex, materialIndex)
+    {
+        if (this.previousMaterialIndex !== materialIndex) {
+            if (this.groupStart !== null) {
+                this.AddGroup (this.groupStart, itemIndex - 1);
+            }
+            this.groupStart = itemIndex;
+            
+            // 关键：从全局缓存获取 THREE.Material
+            // 不同的 MeshInstance 如果用同一个 materialIndex，会拿到同一个对象
+            let threeMaterial = this.materialHandler.GetThreeMaterial (
+                materialIndex, 
+                this.geometryType
+            );
+            
+            this.meshThreeMaterials.push (threeMaterial);
+            this.meshOriginalMaterials.push (materialIndex);
+            
+            this.previousMaterialIndex = materialIndex;
+        }
     }
     
-    return threeMaterial;
+    Finalize (itemCount)
+    {
+        this.AddGroup (this.groupStart, itemCount - 1);
+    }
+    
+    AddGroup (start, end)
+    {
+        // 使用 THREE.BufferGeometry 的 groups 机制
+        // 让单个 Geometry 的不同范围使用不同材质
+        let materialIndex = this.meshThreeMaterials.length - 1;
+        this.threeGeometry.addGroup (
+            start * this.itemVertexCount, 
+            (end - start + 1) * this.itemVertexCount, 
+            materialIndex  // 指向 meshThreeMaterials 数组的索引
+        );
+    }
 }
 ```
-**位置：** `threeconverter.js:139-213`
+**位置：** `threeconverter.js:277-325`
 
-### 2. 纹理异步加载与状态同步
+### 4. 几何 vs 材质：缓存边界的清晰对比
+
+#### 4.1 数据结构对比
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    几何 vs 材质：缓存策略对比                           │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  【材质：全局共享】                                                    │
+│                                                                        │
+│  ThreeMaterialHandler                                                  │
+│  ├── modelToThreeMaterial: Map                                        │
+│  │   ├── 0 ──▶ THREE.MeshPhongMaterial (共享对象)                    │
+│  │   ├── 1 ──▶ THREE.MeshStandardMaterial (共享对象)                 │
+│  │   └── 2 ──▶ THREE.LineBasicMaterial (共享对象)                     │
+│  │                                                                    │
+│  结果：所有使用 materialIndex=0 的 MeshInstance                       │
+│        都引用同一个 THREE.Material 对象                               │
+│                                                                        │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  【几何：按实例展开】                                                  │
+│                                                                        │
+│  MeshInstance[0] (nodeId=0, meshIndex=0)                             │
+│  ├── threeGeometry: THREE.BufferGeometry #1 (独立)                   │
+│  └── meshThreeMaterials: [THREE.MeshPhongMaterial (共享)]            │
+│                                                                        │
+│  MeshInstance[1] (nodeId=1, meshIndex=0)  ← 同一个 meshIndex！      │
+│  ├── threeGeometry: THREE.BufferGeometry #2 (独立，数据与 #1 重复)  │
+│  └── meshThreeMaterials: [THREE.MeshPhongMaterial (同一个共享对象)]  │
+│                                                                        │
+│  结果：虽然引用同一个底层 Mesh                                         │
+│        但 BufferGeometry 是独立创建的，顶点数据重复存储               │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 4.2 按材质分组的层级
+
+`ThreeMeshMaterialHandler` 的分组是**在单个 MeshInstance 内部**进行的，不是全局的：
+
+```
+场景：一个 Mesh 包含 100 个三角形，其中 40 个用 material=0，60 个用 material=1
+      这个 Mesh 被两个不同的 Node 引用（两个 MeshInstance）
+
+转换结果：
+┌────────────────────────────────────────────────────────────────────┐
+│  MeshInstance A (nodeId=0, meshIndex=0)                            │
+│  ├── threeGeometry A                                                 │
+│  │   ├── group 0: 三角形 0-39, 使用 meshThreeMaterials[0]          │
+│  │   └── group 1: 三角形 40-99, 使用 meshThreeMaterials[1]         │
+│  │                                                                    │
+│  └── meshThreeMaterials: [mat0_shared, mat1_shared]                 │
+│                                                                    │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  MeshInstance B (nodeId=1, meshIndex=0)                            │
+│  ├── threeGeometry B  ← 独立的 BufferGeometry，顶点数据与 A 重复   │
+│  │   ├── group 0: 三角形 0-39, 使用 meshThreeMaterials[0]          │
+│  │   └── group 1: 三角形 40-99, 使用 meshThreeMaterials[1]         │
+│  │                                                                    │
+│  └── meshThreeMaterials: [mat0_shared, mat1_shared]  ← 相同的材质  │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
+
+关键点：
+- 几何数据：A 和 B 有独立的 BufferGeometry，内存重复
+- 材质对象：A 和 B 共享 mat0_shared 和 mat1_shared
+- 分组逻辑：在 A、B 内部独立进行，不是全局合并
+```
+
+### 5. 为什么材质可复用而几何不复用？
+
+这是理解 OV 设计的核心问题。答案在于**选中状态同步的需求**和**变换处理方式**。
+
+#### 5.1 原因 1：变换在节点层级应用，不是 bake 到顶点
+
+看 `ThreeNodeTree.AddNode` 中变换的处理方式：
+
+```javascript
+AddNode (node, threeNode)
+{
+    // 变换应用到 THREE.Object3D 层级
+    let matrix = node.GetTransformation ().GetMatrix ();
+    let threeMatrix = new THREE.Matrix4 ().fromArray (matrix.Get ());
+    threeNode.applyMatrix4 (threeMatrix);
+    
+    // ... 子节点和 mesh 引用处理
+}
+```
+**位置：** `threeconverter.js:79-83`
+
+**关键：** 变换是应用到 `threeNode`（THREE.Object3D）上，不是 bake 到顶点数据中。
+
+这意味着：
+- 如果两个 Node 用不同变换引用同一个 Mesh，**顶点数据本身是相同的**
+- 变换由 Object3D 的 matrix 提供，不是 vertex attribute
+
+**理论上可以共享 BufferGeometry**，但 OV 选择不共享。为什么？
+
+#### 5.2 原因 2：选中同步需要 MeshInstanceId 级别的独立性
+
+让我们追溯 `userData.originalMeshInstance` 的使用方式：
+
+```javascript
+// 场景树中每个 THREE.Mesh 的 userData
+threeMesh.userData = {
+    originalMeshInstance : meshInstance,  // 每个 Mesh 指向不同的实例
+    originalMaterials : [...],
+    threeMaterials : null
+};
+```
+**位置：** `threeconverter.js:413-417`
+
+**在 website.js 中的使用（选中逻辑）：**
+
+```javascript
+// 鼠标点击后的选中设置
+this.navigator.SetSelection (
+    new Selection (
+        SelectionType.Mesh, 
+        meshUserData.originalMeshInstance.id  // 关键：使用 MeshInstanceId
+    )
+);
+
+// 可见性切换
+this.navigator.ToggleMeshVisibility (meshUserData.originalMeshInstance.id);
+
+// 独立判断
+return meshUserData.originalMeshInstance.id.IsEqual (meshInstanceId);
+```
+**位置：** `website.js:321, 358, 437`
+
+**核心问题：如果 BufferGeometry 共享，会怎样？**
+
+假设我们实现几何复用：
+
+```
+【假设的共享方案】
+Mesh (index=0) ──┬──▶ MeshInstance A (nodeId=0) ──┐
+                 │                                  ├──▶ 共享 BufferGeometry
+                 └──▶ MeshInstance B (nodeId=1) ──┘
+
+问题：
+- Raycaster 拾取时，返回的是 THREE.Mesh，不是 BufferGeometry
+- 如果要共享 BufferGeometry，需要创建两个 THREE.Mesh 引用同一个 Geometry
+- 这在技术上是可行的！THREE.Mesh 可以共享 Geometry
+
+但 OV 为什么不这样做？
+```
+
+让我们再看 `CreateThreeTriangleMesh` 的完整流程：
+
+```javascript
+function CreateThreeTriangleMesh (meshInstance, materialHandler)
+{
+    // ...
+    
+    // 注意：三角形排序是在 MeshInstance 层面做的
+    // 但实际上排序只依赖 mesh.triangle[i].mat，不依赖 node
+    triangleIndices.sort ((a, b) => {
+        let aTriangle = mesh.GetTriangle (a);
+        let bTriangle = mesh.GetTriangle (b);
+        return aTriangle.mat - bTriangle.mat;
+    });
+    
+    // ...
+    
+    // 顶点展开也只依赖 mesh 的数据
+    let v0 = mesh.GetVertex (triangle.v0);
+    // ...
+    
+    // 关键区别在于 userData
+    threeMesh.userData = {
+        originalMeshInstance : meshInstance,  // 这个是不同的！
+        // ...
+    };
+}
+```
+
+**答案：OV 当前的实现选择"简单直接"而非"最大复用"**
+
+实际上，从技术角度看，OV **可以**实现 BufferGeometry 复用，因为：
+1. 顶点数据只依赖 `mesh`，不依赖 `node`
+2. 变换在 Object3D 层级应用
+3. `userData` 是挂在 THREE.Mesh 上，不是 BufferGeometry
+
+但 OV 选择了**每次都新建**，可能的原因：
+
+| 因素 | 说明 |
+|------|------|
+| 实现简单 | 不需要维护 `meshIndex -> BufferGeometry` 的额外缓存 Map |
+| 内存 vs 可预测性 | 对于大多数模型（实例化不多的场景），重复内存不是问题 |
+| 避免共享陷阱 | 如果未来需要在 Geometry 层面做实例特定修改，共享会有问题 |
+| 代码路径统一 | 所有 MeshInstance 走相同的创建路径，没有特殊情况 |
+
+#### 5.3 原因 3：高亮和可见性需要独立控制
+
+看 Viewer 层的实现：
+
+```javascript
+// 可见性控制
+SetMeshesVisibility (isVisible)
+{
+    this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+        // mesh 是 THREE.Mesh，独立的 visible 属性
+        let visible = isVisible (mesh.userData);
+        if (mesh.visible !== visible) {
+            mesh.visible = visible;
+        }
+    });
+    // ...
+}
+```
+**位置：** `viewer.js:449-464`
+
+```javascript
+// 高亮控制
+SetMeshesHighlight (highlightColor, isHighlighted)
+{
+    this.mainModel.EnumerateMeshesAndLines ((mesh) => {
+        let highlighted = isHighlighted (mesh.userData);
+        
+        if (highlighted) {
+            if (mesh.userData.threeMaterials === null) {
+                // 保存当前材质引用
+                mesh.userData.threeMaterials = mesh.material;
+                // 替换为高亮材质数组
+                mesh.material = CreateHighlightMaterials (...);
+            }
+        } else {
+            if (mesh.userData.threeMaterials !== null) {
+                // 恢复
+                mesh.material = mesh.userData.threeMaterials;
+                mesh.userData.threeMaterials = null;
+            }
+        }
+    });
+}
+```
+**位置：** `viewer.js:466-485`
+
+**关键点：**
+- `mesh.visible` 是 THREE.Mesh 的属性，不是 BufferGeometry 的
+- `mesh.material` 替换也是替换 THREE.Mesh 的 material 引用
+- 即使 BufferGeometry 共享，这些操作仍然可以独立进行
+
+**所以"选中同步"并不是阻止几何复用的根本原因**，根本原因更可能是**实现简单性优先**的设计选择。
+
+### 6. 对性能和选中同步的影响
+
+#### 6.1 性能影响
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    当前设计的性能特征                                   │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  【内存占用】                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │  场景：同一个 Mesh 包含 10000 个顶点，被 N 个 Node 引用          │ │
+│  │                                                                    │ │
+│  │  当前设计（不复用）：                                              │ │
+│  │  ├── 顶点数据：10000 × 3 floats × N 份 = 120N KB (float32)     │ │
+│  │  ├── 法线数据：同样 120N KB                                       │ │
+│  │  ├── UV 数据：如果有，80N KB                                      │ │
+│  │  └── 材质对象：N 个数组，但元素是共享引用                          │ │
+│  │                                                                    │ │
+│  │  如果复用 Geometry：                                               │ │
+│  │  ├── 顶点/法线/UV：各 1 份，与 N 无关                             │ │
+│  │  └── 内存节省：O(N) 级别的减少                                    │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                        │
+│  【Draw Call】                                                         │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │  当前设计：                                                        │ │
+│  │  ├── 每个 MeshInstance 至少 1 个 draw call（面）                 │ │
+│  │  ├── 如果用了多种材质，每个 group 增加 draw call                 │ │
+│  │  └── 总 draw call 数与 MeshInstance 数量正相关                   │ │
+│  │                                                                    │ │
+│  │  如果用 GPU Instancing：                                          │ │
+│  │  ├── 相同 Geometry + 相同材质可以合并为 1 个 draw call           │ │
+│  │  └── 但需要额外的 per-instance attribute（transform 等）         │ │
+│  │                                                                    │ │
+│  │  OV 的选择：不做 instancing，保持简单                             │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                        │
+│  【GPU 材质状态切换】                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐ │
+│  │  当前设计：                                                        │ │
+│  │  ├── 材质对象是共享的                                              │ │
+│  │  └── 如果连续 draw call 使用相同材质，GPU 状态切换开销较小        │ │
+│  │                                                                    │ │
+│  │  这是材质缓存带来的好处，与几何复用无关                            │ │
+│  └──────────────────────────────────────────────────────────────────┘ │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+#### 6.2 对选中同步的影响
+
+当前设计对选中同步是**友好的**，因为：
+
+```
+每个 THREE.Mesh 有独立的 userData：
+┌─────────────────────────────────────────────────────────────────────┐
+│  THREE.Mesh A (for MeshInstance A)                                   │
+│  ├── userData.originalMeshInstance.id = (nodeId=0, meshIndex=0)    │
+│  ├── visible: 独立控制                                                │
+│  └── material: 可独立替换为高亮材质                                   │
+│                                                                       │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                       │
+│  THREE.Mesh B (for MeshInstance B)                                   │
+│  ├── userData.originalMeshInstance.id = (nodeId=1, meshIndex=0)    │
+│  ├── visible: 独立控制                                                │
+│  └── material: 可独立替换为高亮材质                                   │
+│                                                                       │
+└─────────────────────────────────────────────────────────────────────┘
+
+鼠标拾取流程：
+1. Raycaster.intersectObject() 返回 THREE.Mesh
+2. mesh.userData.originalMeshInstance.id 就是选中目标
+3. 与导航器中的 selection 比较（通过 MeshInstanceId.IsEqual）
+4. 高亮时遍历所有 Mesh，通过 userData 判断是否需要高亮
+
+这种设计非常直接："你点到的那个 Mesh 的 userData 就是答案"
+```
+
+**对比：如果几何复用但 Mesh 独立**
+
+实际上，即使 BufferGeometry 共享，只要 THREE.Mesh 独立，上述流程完全不变。因为：
+- `raycaster.intersectObject()` 返回的是 THREE.Mesh
+- `mesh.userData` 挂在 THREE.Mesh 上，不是 BufferGeometry
+- `mesh.visible` 和 `mesh.material` 也是 THREE.Mesh 的属性
+
+**所以几何不复用不是选中同步的必要条件**，只是 OV 当前的实现选择。
+
+### 7. 纹理异步加载与状态同步
 
 纹理加载是异步过程，需要特殊的状态协调机制：
 
@@ -558,119 +1144,6 @@ LoadFaceTexture (threeMaterial, texture, onTextureLoaded)
 **位置：** `threeconverter.js:237-274`
 
 **生命周期管理：** 这些 `objectUrls` 由 `ThreeModelLoader` 追踪，在下次加载或销毁时通过 `RevokeObjectUrls` 释放。
-
-### 3. 几何数据处理与多材质分组
-
-当一个 Mesh 包含多个不同材质的三角形时，需要使用 Three.js 的 **Geometry Groups** 机制实现单 Geometry 多材质渲染。
-
-#### 3.1 按材质排序
-
-```javascript
-CreateThreeTriangleMesh (meshInstance, materialHandler)
-{
-    let mesh = meshInstance.mesh;
-    let triangleCount = mesh.TriangleCount ();
-    
-    // 关键点：按材质索引排序
-    // 这样相同材质的三角形在数组中连续，便于分组
-    let triangleIndices = [];
-    for (let i = 0; i < triangleCount; i++) {
-        triangleIndices.push (i);
-    }
-    triangleIndices.sort ((a, b) => {
-        let aTriangle = mesh.GetTriangle (a);
-        let bTriangle = mesh.GetTriangle (b);
-        return aTriangle.mat - bTriangle.mat;
-    });
-    
-    let threeGeometry = new THREE.BufferGeometry ();
-    let meshMaterialHandler = new ThreeMeshMaterialHandler (
-        threeGeometry, 
-        MaterialGeometryType.Face, 
-        materialHandler
-    );
-    
-    // ... 遍历排序后的三角形，填充顶点数据
-}
-```
-**位置：** `threeconverter.js:329-420`
-
-#### 3.2 ThreeMeshMaterialHandler 分组机制
-
-```javascript
-export class ThreeMeshMaterialHandler
-{
-    constructor (threeGeometry, geometryType, materialHandler)
-    {
-        this.threeGeometry = threeGeometry;
-        this.geometryType = geometryType;
-        this.materialHandler = materialHandler;
-        
-        this.itemVertexCount = (geometryType === MaterialGeometryType.Face) ? 3 : 2;
-        
-        // 两组材质数组：Three.js 材质 + 原始索引（用于同步）
-        this.meshThreeMaterials = [];
-        this.meshOriginalMaterials = [];
-        
-        this.groupStart = null;
-        this.previousMaterialIndex = null;
-    }
-    
-    ProcessItem (itemIndex, materialIndex)
-    {
-        if (this.previousMaterialIndex !== materialIndex) {
-            // 材质变化：关闭上一个 group（如果有）
-            if (this.groupStart !== null) {
-                this.AddGroup (this.groupStart, itemIndex - 1);
-            }
-            
-            // 开启新 group
-            this.groupStart = itemIndex;
-            
-            // 从缓存获取 Three.js 材质（利用前面的缓存机制）
-            let threeMaterial = this.materialHandler.GetThreeMaterial (
-                materialIndex, this.geometryType
-            );
-            this.meshThreeMaterials.push (threeMaterial);
-            this.meshOriginalMaterials.push (materialIndex);
-            
-            this.previousMaterialIndex = materialIndex;
-        }
-    }
-    
-    Finalize (itemCount)
-    {
-        this.AddGroup (this.groupStart, itemCount - 1);
-    }
-    
-    AddGroup (start, end)
-    {
-        // materialIndex 指向 meshThreeMaterials 数组的索引
-        let materialIndex = this.meshThreeMaterials.length - 1;
-        
-        // THREE.BufferGeometry.addGroup(start, count, materialIndex)
-        this.threeGeometry.addGroup (
-            start * this.itemVertexCount, 
-            (end - start + 1) * this.itemVertexCount, 
-            materialIndex
-        );
-    }
-}
-```
-**位置：** `threeconverter.js:277-325`
-
-最终 THREE.Mesh 的构建：
-
-```javascript
-let threeMesh = new THREE.Mesh (threeGeometry, meshMaterialHandler.meshThreeMaterials);
-threeMesh.name = mesh.GetName ();
-threeMesh.userData = {
-    originalMeshInstance : meshInstance,      // 回指 OV 内部模型
-    originalMaterials : meshMaterialHandler.meshOriginalMaterials,  // 原始材质索引
-    threeMaterials : null  // 用于高亮状态时保存原材质
-};
-```
-**位置：** `threeconverter.js:411-417`
 
 ---
 
@@ -880,29 +1353,24 @@ threeMesh.userData = {
 `MeshInstance` 是 OV 内部的关键概念：
 
 ```javascript
-export class MeshInstanceId
-{
-    constructor (nodeId, meshIndex)
-    {
-        this.nodeId = nodeId;      // 场景图节点 ID
-        this.meshIndex = meshIndex; // 该节点引用的 mesh 索引
-    }
-}
-
-export class MeshInstance
+export class MeshInstance extends ModelObject3D
 {
     constructor (id, node, mesh)
     {
-        this.id = id;
-        this.node = node;
-        this.mesh = mesh;
+        super ();
+        this.id = id;      // MeshInstanceId (nodeId, meshIndex)
+        this.node = node;  // 场景图节点引用
+        this.mesh = mesh;  // 几何数据引用
+    }
+    
+    GetTransformation ()
+    {
+        return this.node.GetWorldTransformation ();
     }
     // ...
 }
 ```
-**位置：** `meshinstance.js`（逻辑来自 main.js 导出）
-
-**设计意图：** 同一个 Mesh 可以被多个 Node 引用（实例化），`MeshInstanceId` 唯一标识一个具体的使用位置。
+**位置：** `meshinstance.js:23-138`
 
 #### 4.2 高亮实现机制
 
@@ -1172,7 +1640,7 @@ Finalization 作为独立阶段，可以做：
 └────────────────────────────────────────────────────────────────┘
 ```
 
-看 `exporterobj.js` 等导出器的实现：它们直接读取 Model/Mesh/Material，不依赖 Three.js。
+看 `exportergltf.js` 等导出器的实现：它们直接读取 Model/Mesh/Material，不依赖 Three.js。
 
 #### 好处 4：缓存与状态管理更清晰
 
@@ -1216,43 +1684,4 @@ Internal Model ──┬──▶ ThreeConverter ──▶ THREE.Object3D
                  └──▶ [可扩展] Export to STL/OBJ/GLTF/...
 ```
 
-内部模型层定义了"什么是 3D 模型"，转换层只是不同的序列化/适配方式。
-
-### 4. 设计权衡
-
-任何架构选择都有代价：
-
-| 代价 | 说明 | 缓解措施 |
-|------|------|---------|
-| 内存占用 | 内部模型 + Three.js 模型两份表示 | 大型场景下可考虑延迟转换或流式处理（当前未实现） |
-| 转换开销 | Finalization + ThreeConverter 两次遍历 | 批处理（`RunTasksBatch`）缓解 UI 阻塞 |
-| 实现复杂度 | 需要维护两套模型语义映射 | userData 回指机制 + 明确的 MeshInstance 概念 |
-| 功能滞后 | Three.js 新特性需要先映射到内部模型 | 内部模型设计时保持扩展性（如 PhysicalMaterial 后加） |
-
----
-
-## 总结
-
-### 核心设计模式提炼
-
-1. **Pipeline 模式（Finalization）**：将数据规范化拆分为独立阶段，每个阶段职责单一
-2. **Cache 模式（ThreeMaterialHandler）**：通过 Map 缓存材质对象，避免重复创建
-3. **Adapter 模式（ThreeConverter）**：将内部模型适配为 Three.js 场景树
-4. **Memento 模式（userData.threeMaterials）**：高亮时保存原始状态，事后恢复
-5. **Layered Architecture**：Importer → Internal Model → Converter → Viewer 清晰分层
-
-### 关键数据流公式
-
-```
-最终渲染 = 
-  格式解析(Importer) 
-  + 规范化(Finalization: 法线+材质+节点清理) 
-  + 转换(ThreeConverter: 几何展开+材质缓存+纹理加载) 
-  + 同步(Viewer: userData回指 + 材质切换)
-```
-
-### 最值得借鉴的设计
-
-1. **Finalization 中 curve 分组法线算法**：展示了如何处理 CAD 模型中的平滑需求
-2. **材质索引 + userData 同步**：简单高效的跨层状态管理方案
-3. **独立内部模型层**：为多格式支持、分析、导出、测试提供统一基础
+内部模型层定义了"什么是

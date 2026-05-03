@@ -1684,4 +1684,79 @@ Internal Model ──┬──▶ ThreeConverter ──▶ THREE.Object3D
                  └──▶ [可扩展] Export to STL/OBJ/GLTF/...
 ```
 
-内部模型层定义了"什么是
+内部模型层定义了"什么是 3D 模型"，转换层只是不同的序列化/适配方式。
+
+### 4. 设计权衡
+
+任何架构选择都有代价：
+
+| 代价 | 说明 | 缓解措施 |
+|------|------|---------|
+| 内存占用 | 内部模型 + Three.js 模型两份表示 | 大型场景下可考虑延迟转换或流式处理（当前未实现） |
+| 转换开销 | Finalization + ThreeConverter 两次遍历 | 批处理（`RunTasksBatch`）缓解 UI 阻塞 |
+| 实现复杂度 | 需要维护两套模型语义映射 | userData 回指机制 + 明确的 MeshInstance 概念 |
+| 功能滞后 | Three.js 新特性需要先映射到内部模型 | 内部模型设计时保持扩展性（如 PhysicalMaterial 后加） |
+
+---
+
+## 总结
+
+### 核心设计模式提炼
+
+1. **Pipeline 模式（Finalization）**：将数据规范化拆分为独立阶段，每个阶段职责单一
+2. **Cache 模式（ThreeMaterialHandler）**：通过 Map 缓存材质对象，避免重复创建
+3. **Adapter 模式（ThreeConverter）**：将内部模型适配为 Three.js 场景树
+4. **Memento 模式（userData.threeMaterials）**：高亮时保存原始状态，事后恢复
+5. **Layered Architecture**：Importer → Internal Model → Converter → Viewer 清晰分层
+
+### 几何与材质缓存边界的关键结论
+
+#### 边界的明确定义
+
+**几何数据（BufferGeometry）的边界：MeshInstanceId**
+
+- 每个 `MeshInstanceId = (nodeId, meshIndex)` 组合对应独立的 THREE.Mesh 和独立的 BufferGeometry
+- 即使两个 MeshInstance 引用同一个底层 Mesh（相同 meshIndex），只要 nodeId 不同，就创建独立的 BufferGeometry
+- 边界是**实例的使用位置**，不是数据的内容
+
+**材质数据（Material）的边界：materialIndex**
+
+- 每个 `materialIndex` 对应唯一的 THREE.Material 对象（通过 `modelToThreeMaterial` Map 缓存）
+- 不同的 MeshInstance、不同的 ThreeNodeItem、不同的 THREE.Mesh 都可以引用同一个 THREE.Material 对象
+- 边界是**材质的标识**，与使用位置无关
+
+#### 边界对比表
+
+| 维度 | 几何处理（BufferGeometry） | 材质处理（Material） |
+|------|---------------------------|----------------------|
+| **缓存策略** | 按实例展开，不复用 | 全局 Map 缓存，跨实例共享 |
+| **标识键** | `MeshInstanceId = (nodeId, meshIndex)` | `materialIndex`（数字） |
+| **变换处理** | 变换在 Object3D 层级应用，不 bake 到顶点 | 与变换无关 |
+| **分组层级** | 分组在 MeshInstance 内部进行，非全局 | 材质分组是共享的前提 |
+| **可见性控制** | 每个 THREE.Mesh 有独立 `visible` 属性 | 材质对象无独立可见性，由 Mesh 控制 |
+| **选中同步** | 每个 THREE.Mesh 有独立 userData | 材质替换在 Mesh 层级，非材质对象层级 |
+| **性能影响** | 内存重复，Draw Call 多 | GPU 状态切换少，内存共享 |
+
+### 为什么几何不复用的深层原因
+
+1. **实现简单性优先**：不需要维护 `meshIndex → BufferGeometry` 的额外缓存 Map，所有 MeshInstance 走相同代码路径
+2. **避免共享陷阱**：如果未来需要在 Geometry 层面做实例特定修改，共享会引入复杂性
+3. **场景特点假设**：对于大多数 CAD 查看场景，实例化数量有限，重复内存不是瓶颈
+4. **技术上可行但未实现**：从技术角度看，BufferGeometry 复用是可行的（THREE.Mesh 可共享 Geometry，userData 挂在 Mesh 上），但 OV 选择了更简单直接的实现
+
+### 关键数据流公式
+
+```
+最终渲染 = 
+  格式解析(Importer) 
+  + 规范化(Finalization: 法线+材质+节点清理) 
+  + 转换(ThreeConverter: 几何展开+材质缓存+纹理加载) 
+  + 同步(Viewer: userData回指 + 材质切换)
+```
+
+### 最值得借鉴的设计
+
+1. **Finalization 中 curve 分组法线算法**：展示了如何处理 CAD 模型中的平滑需求
+2. **材质索引 + userData 同步**：简单高效的跨层状态管理方案
+3. **独立内部模型层**：为多格式支持、分析、导出、测试提供统一基础
+4. **几何与材质缓存的清晰边界**：展示了如何根据数据特性和使用场景选择不同的缓存策略
